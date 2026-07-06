@@ -1,0 +1,6 @@
+streamlit>=1.30.0
+pymupdf>=1.23.0
+chromadb>=0.4.22
+openai>=1.10.0
+python-dotenv>=1.0.0
+tiktoken>=0.5.2

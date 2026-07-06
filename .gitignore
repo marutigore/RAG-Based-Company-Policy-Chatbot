@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local configuration file (contains API keys)
+.env
+
+# Vector databases and database files
+chroma_db/
+*.db
+*.sqlite
+
+# Streamlit local files
+.streamlit/
+
+# Temporary directories
+temp_uploads/
+tmp/
+temp/
+
+# OS-specific files
+Thumbs.db
+desktop.ini
+.DS_Store
