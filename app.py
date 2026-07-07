@@ -3,6 +3,7 @@ Main Streamlit Application.
 Implements the multi-document policy chatbot interface with high-fidelity UI/UX
 inspired by the Synthara project: dark slate HSL variables, glass-modern cards,
 animated floating backgrounds, top metrics grids, document registries, and split-layout chats.
+Custom CSS overrides are applied to standard Streamlit components to ensure a fully branded web app experience.
 """
 
 import os
@@ -30,9 +31,12 @@ st.set_page_config(
 logger = logging.getLogger("app")
 logging.basicConfig(level=config.LOG_LEVEL)
 
-# Tailwind-based glassmorphism, responsive dashboard CSS variables and animations
+# Tailwind-based glassmorphism, responsive dashboard CSS variables, animations, and Streamlit overrides
 CUSTOM_CSS = """
 <style>
+    /* Google Fonts Loading */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap');
+
     /* CSS Variables & Global Dark Theme from Synthara project */
     :root {
         --background: #0B0F19;      /* Deep dark slate */
@@ -45,17 +49,22 @@ CUSTOM_CSS = """
         --glass-border: rgba(255, 255, 255, 0.08);
     }
 
+    /* Font application across the app */
+    html, body, [class*="css"] {
+        font-family: 'Inter', sans-serif !important;
+    }
+
     /* Shifting background gradient + Synthara SVG Grid Overlay */
     .stApp {
         background-color: var(--background) !important;
         background-image: 
-            radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
-            radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+            radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+            radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.12) 0px, transparent 50%),
             url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32' fill='none' stroke='rgb(255 255 255 / 0.015)'%3E%3Cpath d='M0 .5H31.5V32'/%3E%3C/svg%3E") !important;
         color: #F8FAFC !important;
     }
 
-    /* Global Scrollbar styling */
+    /* Custom Webkit scrollbar */
     ::-webkit-scrollbar {
         width: 8px;
     }
@@ -70,18 +79,24 @@ CUSTOM_CSS = """
         background: rgba(148, 163, 184, 0.4);
     }
 
-    /* Login and Dashboard Animations */
+    /* Keyframe Animations */
     @keyframes float {
         0%, 100% { transform: translateY(0px); }
-        50% { transform: translateY(-15px); }
+        50% { transform: translateY(-10px); }
     }
     @keyframes pulseGlow {
         0%, 100% { opacity: 0.35; filter: blur(40px); }
         50% { opacity: 0.6; filter: blur(60px); }
     }
     @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(20px); }
+        from { opacity: 0; transform: translateY(15px); }
         to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Floating Header Logo Animation */
+    .animate-float-logo {
+        animation: float 5s ease-in-out infinite;
+        display: inline-block;
     }
 
     /* Background Floating Blurs */
@@ -90,7 +105,7 @@ CUSTOM_CSS = """
         width: 300px;
         height: 300px;
         border-radius: 50%;
-        background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, rgba(59, 130, 246, 0) 70%);
+        background: radial-gradient(circle, rgba(139, 92, 246, 0.25) 0%, rgba(59, 130, 246, 0) 70%);
         top: 20%;
         left: 30%;
         z-index: 0;
@@ -98,7 +113,7 @@ CUSTOM_CSS = """
         animation: pulseGlow 6s ease-in-out infinite;
     }
 
-    /* Login Panel */
+    /* Login Card Panel */
     .login-container {
         display: flex;
         justify-content: center;
@@ -120,6 +135,7 @@ CUSTOM_CSS = """
     }
     .login-logo {
         text-align: center;
+        font-family: 'Space Grotesk', sans-serif;
         font-size: 2.5em;
         font-weight: 800;
         background: linear-gradient(90deg, #60A5FA 0%, #A78BFA 100%);
@@ -135,7 +151,16 @@ CUSTOM_CSS = """
         margin-bottom: 30px;
     }
 
-    /* Stats Grid Header */
+    /* Header Logo Text Gradient */
+    .text-gradient-logo {
+        font-family: 'Space Grotesk', sans-serif;
+        font-weight: 800;
+        background: linear-gradient(90deg, #60A5FA 0%, #A78BFA 50%, #EC4899 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* Top Grid Dashboard Metrics */
     .stat-container {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -164,6 +189,7 @@ CUSTOM_CSS = """
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-top: 5px;
+        font-family: 'Space Grotesk', sans-serif;
     }
     .stat-lbl {
         color: var(--text-muted);
@@ -175,7 +201,7 @@ CUSTOM_CSS = """
 
     /* Glass Panels */
     .glass-panel {
-        background: rgba(19, 26, 38, 0.4) !important;
+        background: rgba(19, 26, 38, 0.45) !important;
         backdrop-filter: blur(12px) !important;
         border: 1px solid var(--glass-border) !important;
         border-radius: 16px !important;
@@ -183,16 +209,22 @@ CUSTOM_CSS = """
         margin-bottom: 20px;
     }
 
-    /* Citation and evaluation styling */
+    /* Citation and evaluation badge styling */
     .citation-card {
-        background: rgba(255, 255, 255, 0.02) !important;
-        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        background: rgba(255, 255, 255, 0.01) !important;
+        border: 1px solid rgba(255, 255, 255, 0.04) !important;
         border-left: 4px solid var(--primary) !important;
         padding: 12px 16px;
         margin: 10px 0px;
         border-radius: 0px 10px 10px 0px;
         font-size: 0.9em;
         color: #E2E8F0;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .citation-card:hover {
+        transform: translateX(3px);
+        border-color: rgba(59, 130, 246, 0.3) !important;
+        background: rgba(255, 255, 255, 0.02) !important;
     }
     .metric-badge {
         display: inline-block;
@@ -206,10 +238,84 @@ CUSTOM_CSS = """
     .badge-yellow { background-color: #F59E0B; }
     .badge-red { background-color: #EF4444; }
 
-    /* Hide default Streamlit padding */
+    /* Streamlit Components Visual Overrides (Glow effects, fonts) */
     .block-container {
         padding-top: 2rem !important;
         padding-bottom: 2rem !important;
+    }
+
+    /* Override Chat Message Bubble Styles */
+    div[data-testid="stChatMessage"] {
+        background-color: rgba(19, 26, 38, 0.45) !important;
+        border: 1px solid var(--glass-border) !important;
+        border-radius: 14px !important;
+        padding: 18px !important;
+        margin-bottom: 12px !important;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
+    }
+    div[data-testid="stChatMessageAudience-user"] {
+        background-color: rgba(59, 130, 246, 0.08) !important;
+        border-color: rgba(59, 130, 246, 0.2) !important;
+    }
+
+    /* Override Chat Input styling to feel like custom premium React portal */
+    div[data-testid="stChatInput"] {
+        border-radius: 16px !important;
+        border: 1px solid rgba(139, 92, 246, 0.2) !important;
+        background-color: rgba(19, 26, 38, 0.8) !important;
+        box-shadow: 0 0 15px rgba(139, 92, 246, 0.15) !important;
+        transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+    }
+    div[data-testid="stChatInput"]:focus-within {
+        border-color: rgba(139, 92, 246, 0.6) !important;
+        box-shadow: 0 0 25px rgba(139, 92, 246, 0.3) !important;
+    }
+    div[data-testid="stChatInput"] textarea {
+        color: #F8FAFC !important;
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* Override File Uploader border and background */
+    div[data-testid="stFileUploader"] {
+        border: 2px dashed rgba(139, 92, 246, 0.2) !important;
+        border-radius: 14px !important;
+        background-color: rgba(19, 26, 38, 0.2) !important;
+        padding: 12px !important;
+        transition: border-color 0.3s ease !important;
+    }
+    div[data-testid="stFileUploader"]:hover {
+        border-color: var(--primary) !important;
+    }
+
+    /* Override Expanders */
+    .st-expanderHeader {
+        background-color: rgba(19, 26, 38, 0.5) !important;
+        border: 1px solid var(--glass-border) !important;
+        border-radius: 10px !important;
+        color: #F8FAFC !important;
+    }
+    .st-expanderContent {
+        background-color: rgba(19, 26, 38, 0.1) !important;
+        border-radius: 0px 0px 10px 10px !important;
+        border: 1px solid var(--glass-border) !important;
+        border-top: none !important;
+    }
+
+    /* Override Buttons */
+    .stButton>button {
+        border-radius: 10px !important;
+        background: linear-gradient(90deg, #3B82F6 0%, #8B5CF6 100%) !important;
+        border: none !important;
+        color: white !important;
+        font-weight: 600 !important;
+        transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 5px 15px rgba(139, 92, 246, 0.4) !important;
+    }
+    .stButton>button:active {
+        transform: translateY(0px) !important;
     }
 </style>
 """
@@ -372,8 +478,8 @@ def main() -> None:
     is_api_key_valid = config.check_keys()
 
     # Header portal branding
-    st.markdown("<h1 style='font-family:\"Outfit\", sans-serif; font-weight:800; font-size:2.8em; margin-bottom:5px;'>🛡️ Synthara Policy Portal</h1>", unsafe_allow_html=True)
-    st.markdown("<div style='color:var(--text-muted); font-size:1em; margin-bottom:25px;'>Deploy local embeddings and RAG logic to parse and search Handbooks with verified evaluations.</div>", unsafe_allow_html=True)
+    st.markdown("<h1 style='margin-bottom:5px;'><span class='animate-float-logo'>🛡️</span> <span class='text-gradient-logo'>Synthara Policy Portal</span></h1>", unsafe_allow_html=True)
+    st.markdown("<div style='color:var(--text-muted); font-size:1.05em; margin-bottom:25px; font-weight: 500;'>Deploy local SentenceTransformers and OpenAI/Gemini routing to parse, index, and query handbooks.</div>", unsafe_allow_html=True)
 
     # Top Grid Dashboard Metrics
     total_chunks = 0
@@ -389,7 +495,7 @@ def main() -> None:
         f"<div class='stat-card'><div class='stat-lbl'>📄 Document Registry</div><div class='stat-val'>{len(document_list)}</div></div>"
         f"<div class='stat-card'><div class='stat-lbl'>📦 Knowledge Nodes</div><div class='stat-val'>{total_chunks}</div></div>"
         f"<div class='stat-card'><div class='stat-lbl'>🛡️ Safety Check</div><div class='stat-val' style='color:#10B981;'>Grounded</div></div>"
-        f"<div class='stat-card'><div class='stat-lbl'>⚙️ Active Model</div><div class='stat-val' style='font-size:1.6em; line-height:2.0; color:#8B5CF6;'>{config.LLM_MODEL}</div></div>"
+        f"<div class='stat-card'><div class='stat-lbl'>⚙️ Active Model</div><div class='stat-val' style='font-size:1.55em; line-height:2.0; color:#8B5CF6; font-family:\"Space Grotesk\", sans-serif;'>{config.LLM_MODEL}</div></div>"
         f"</div>",
         unsafe_allow_html=True
     )
@@ -400,7 +506,7 @@ def main() -> None:
     # LEFT PANEL: DOCUMENT MANAGER & CONFIGS
     with col_workspace_left:
         st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px;'>📁 Ingest documents</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>📁 Ingest Documents</h3>", unsafe_allow_html=True)
         
         uploaded_files = st.file_uploader(
             "Select one or more policy handbooks",
@@ -448,12 +554,12 @@ def main() -> None:
 
         # Document Registry List (Metadata Parser)
         st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px;'>📖 Document Registry</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>📖 Document Registry</h3>", unsafe_allow_html=True)
         
         if document_list:
             for doc in document_list:
                 st.markdown(
-                    f"<div style='background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.04); padding:10px; border-radius:8px; margin-bottom:8px; font-size:0.9em;'>"
+                    f"<div style='background:rgba(255,255,255,0.015); border:1px solid rgba(255,255,255,0.04); padding:12px; border-radius:10px; margin-bottom:8px; font-size:0.9em;'>"
                     f"🟢 <strong>{doc['source']}</strong><br/>"
                     f"<span style='color:var(--text-muted); font-size:0.85em;'>Pages: {doc['pages']} | Nodes: {doc['chunks']}</span>"
                     f"</div>",
@@ -466,7 +572,7 @@ def main() -> None:
 
         # Database Management / Reset
         st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px;'>🧹 Portal Actions</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>🧹 Portal Actions</h3>", unsafe_allow_html=True)
         
         col_act1, col_act2 = st.columns(2)
         with col_act1:
@@ -489,7 +595,7 @@ def main() -> None:
     # RIGHT PANEL: CHAT CONSOLE
     with col_workspace_right:
         st.markdown("<div class='glass-panel' style='min-height:550px;'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px;'>💬 Interactive Chat Console</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>💬 Interactive Chat Console</h3>", unsafe_allow_html=True)
 
         if not st.session_state.db_initialized:
             st.info("👋 Welcome to the Synthara Portal! To start asking questions, please upload corporate documents in the left panel and click **Process & Extract Text**.")
