@@ -100,7 +100,7 @@ def evaluate_faithfulness(contexts: List[str], answer: str) -> Dict[str, Any]:
     )
 
     try:
-        client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
+        client = config.get_openai_client()
         logger.info("Calling OpenAI to evaluate answer Faithfulness...")
         
         response = client.chat.completions.create(
@@ -165,7 +165,7 @@ def evaluate_answer_relevancy(question: str, answer: str) -> Dict[str, Any]:
     )
 
     try:
-        client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
+        client = config.get_openai_client()
         logger.info("Calling OpenAI to evaluate Answer Relevancy...")
         
         response = client.chat.completions.create(

@@ -95,36 +95,27 @@ class TestValidationSuite(unittest.TestCase):
             
         logger.info(f"Test 3 passed: Chunking generated {len(chunks)} text chunks successfully.")
 
-    @patch("utils.embedder.openai.OpenAI")
-    def test_04_embedding(self, mock_openai: MagicMock) -> None:
+    @patch("utils.embedder._get_model")
+    def test_04_embedding(self, mock_get_model: MagicMock) -> None:
         """
         Test 4: Verification of embedding routines.
-        Mocks the OpenAI embedding call to run verification without executing active web requests.
+        Mocks the local SentenceTransformer model call to run verification locally.
         """
         logger.info("Running Test 4: Embedding Logic Verification...")
         from utils.embedder import get_embedding
         
-        # Mocking the client.embeddings.create response structure
-        mock_embedding_data = MagicMock()
-        mock_embedding_data.embedding = [0.1] * 1536  # Return standard size vector of 1536 elements
-        
-        mock_response = MagicMock()
-        mock_response.data = [mock_embedding_data]
-        
-        mock_openai.return_value.embeddings.create.return_value = mock_response
-        
-        # Override config API key temporarily to pass local checks
-        import config
-        original_key = config.OPENAI_API_KEY
-        config.OPENAI_API_KEY = "mock-key-for-testing"
+        # Mocking the SentenceTransformer model encode method
+        mock_model = MagicMock()
+        mock_model.encode.return_value = [0.1] * 384  # Return a mock 384 vector
+        mock_get_model.return_value = mock_model
         
         try:
             vector = get_embedding("Testing embeddings generation")
             self.assertEqual(len(vector), 1536)
             self.assertEqual(vector[0], 0.1)
-            logger.info("Test 4 passed: Embedder returned correct dimensions (1536 floats) using mocked client.")
+            logger.info("Test 4 passed: Embedder returned correct dimensions (1536 floats) using local mocked model.")
         finally:
-            config.OPENAI_API_KEY = original_key
+            pass
 
     @patch("utils.retriever.get_collection")
     @patch("openai.OpenAI")

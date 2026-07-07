@@ -112,10 +112,10 @@ def load_pdf(file_path: str, custom_filename: Optional[str] = None) -> List[Dict
                         img_bytes = pix.tobytes("png")
                         base64_image = base64.b64encode(img_bytes).decode('utf-8')
                         
-                        # Send image to gpt-4o-mini
-                        client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
+                        # Send image to the configured model
+                        client = config.get_openai_client()
                         response = client.chat.completions.create(
-                            model="gpt-4o-mini",
+                            model=config.LLM_MODEL,
                             messages=[
                                 {
                                     "role": "user",

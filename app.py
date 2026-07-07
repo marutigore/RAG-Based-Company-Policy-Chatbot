@@ -190,11 +190,9 @@ def init_session_state() -> None:
             st.session_state.db_initialized = False
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
-
-
 def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
     """Constructs the prompt context and calls the OpenAI API to generate an answer."""
-    client = openai.OpenAI(api_key=config.OPENAI_API_KEY)
+    client = config.get_openai_client()
     
     context_blocks: List[str] = []
     for idx, chunk in enumerate(retrieved_chunks):

@@ -1,140 +1,101 @@
 """
 Embedding Module.
-Interfaces with OpenAI API to generate vector embeddings for text chunks.
+Generates vector embeddings for text chunks completely LOCALLY using SentenceTransformers.
+This ensures 100% free operation with zero quota limits or API keys required.
+Pads embeddings to 1536 dimensions to remain compatible with standard database indices.
 """
 
 import logging
 from typing import List
 import openai
-import config
+from sentence_transformers import SentenceTransformer
 
 # Initialize module logger
 logger = logging.getLogger("utils.embedder")
 
+# Global reference for local SentenceTransformer model instance
+_model = None
+TARGET_DIMENSIONS = 1536
 
-def _get_client() -> openai.OpenAI:
+
+def _get_model() -> SentenceTransformer:
     """
-    Initializes and returns an OpenAI client instance.
-
-    Returns:
-        openai.OpenAI: Configured OpenAI client.
+    Initializes and returns the local SentenceTransformer model instance.
     """
-    # Instantiate client with key loaded from config
-    return openai.OpenAI(api_key=config.OPENAI_API_KEY)
+    global _model
+    if _model is None:
+        logger.info("Initializing SentenceTransformer('all-MiniLM-L6-v2') locally...")
+        # Load the lightweight MiniLM model (runs in milliseconds on CPU)
+        _model = SentenceTransformer('all-MiniLM-L6-v2')
+    return _model
 
 
-def get_embedding(text: str, model: str = config.EMBEDDING_MODEL) -> List[float]:
+def _pad_vector(vector: List[float], target_dim: int = TARGET_DIMENSIONS) -> List[float]:
     """
-    Generates a dense vector embedding for a single text string.
+    Pads a float vector with zeros to reach target dimensions.
+    Mathematically preserves cosine similarity query results.
+    """
+    current_dim = len(vector)
+    if current_dim >= target_dim:
+        return vector[:target_dim]
+    return vector + [0.0] * (target_dim - current_dim)
+
+
+def get_embedding(text: str, model: str = None) -> List[float]:
+    """
+    Generates a dense vector embedding for a single text string locally.
 
     Args:
         text (str): Input text to embed.
-        model (str): Target embedding model ID.
+        model (str): Ignored (always runs all-MiniLM-L6-v2 locally).
 
     Returns:
-        List[float]: Embedding vector.
-
-    Raises:
-        ValueError: If configuration validation or input checking fails.
-        openai.OpenAIError: For API call errors.
-
-    Example:
-        >>> vec = get_embedding("Hello world")
-        >>> print(len(vec))
-        1536
+        List[float]: 1536-dimensional padded embedding vector.
     """
-    # Input validation
     if not text or not text.strip():
         logger.error("Attempted to embed empty or null text.")
         raise ValueError("Input text cannot be empty.")
 
-    # Check API key before invoking OpenAI
-    if not config.OPENAI_API_KEY:
-        logger.error("Missing OpenAI API key configuration.")
-        raise ValueError("OpenAI API key must be set in configuration.")
-
     try:
-        logger.info(f"Generating embedding for text length {len(text)} characters.")
-        client = _get_client()
-        
-        # API call to generate embedding
-        response = client.embeddings.create(
-            input=[text],
-            model=model
-        )
-        # Extract and return float list
-        return response.data[0].embedding
-        
-    except openai.RateLimitError as e:
-        logger.error(f"OpenAI API rate limit exceeded: {e}")
-        raise
-    except openai.AuthenticationError as e:
-        logger.error(f"OpenAI API authentication failed: {e}")
-        raise
-    except openai.APIConnectionError as e:
-        logger.error(f"Failed to connect to OpenAI API server: {e}")
-        raise
+        model_instance = _get_model()
+        raw_embedding = model_instance.encode(text)
+        if hasattr(raw_embedding, "tolist"):
+            raw_embedding = raw_embedding.tolist()
+        else:
+            raw_embedding = list(raw_embedding)
+        # Pad to 1536 dimensions to match database index constraints
+        return _pad_vector(raw_embedding)
     except Exception as e:
-        logger.error(f"Unexpected error in get_embedding: {e}")
+        logger.error(f"Error in local get_embedding: {e}")
         raise
 
 
-def get_embeddings_batch(texts: List[str], model: str = config.EMBEDDING_MODEL, batch_size: int = 100) -> List[List[float]]:
+def get_embeddings_batch(texts: List[str], model: str = None, batch_size: int = 100) -> List[List[float]]:
     """
-    Generates dense vector embeddings for a list of text strings in batches.
-    Batching reduces API calls and avoids hitting single-request overheads.
+    Generates dense vector embeddings for a list of text strings in batches locally.
 
     Args:
         texts (List[str]): List of texts to embed.
-        model (str): Target embedding model ID.
-        batch_size (int): Max number of items to embed in a single batch call.
+        model (str): Ignored.
+        batch_size (int): Max number of items to embed in a single batch.
 
     Returns:
-        List[List[float]]: List of embedding vectors matching input size.
-
-    Raises:
-        ValueError: If config is invalid.
-        openai.OpenAIError: If API call fails.
-
-    Example:
-        >>> vectors = get_embeddings_batch(["Hello", "World"])
-        >>> print(len(vectors))
-        2
+        List[List[float]]: List of 1536-dimensional padded embedding vectors.
     """
     if not texts:
         return []
 
-    if not config.OPENAI_API_KEY:
-        logger.error("Missing OpenAI API key configuration.")
-        raise ValueError("OpenAI API key must be set in configuration.")
-
-    client = _get_client()
-    embeddings: List[List[float]] = []
-
-    logger.info(f"Generating embeddings for {len(texts)} chunks in batches of {batch_size}")
-
-    # Process list in slices of size batch_size
-    for i in range(0, len(texts), batch_size):
-        batch = texts[i : i + batch_size]
-        # Skip empty strings within a batch to avoid API errors
-        batch_clean = [t if t.strip() else "[empty]" for t in batch]
+    try:
+        model_instance = _get_model()
+        raw_embeddings = model_instance.encode(texts, batch_size=batch_size, show_progress_bar=False)
+        if hasattr(raw_embeddings, "tolist"):
+            raw_embeddings = raw_embeddings.tolist()
+        else:
+            raw_embeddings = [list(vec) for vec in raw_embeddings]
         
-        try:
-            logger.info(f"Sending batch {i // batch_size + 1} ({len(batch_clean)} texts) to OpenAI.")
-            # Call API with batch list
-            response = client.embeddings.create(
-                input=batch_clean,
-                model=model
-            )
-            # Append retrieved embeddings to the results list
-            for item in response.data:
-                embeddings.append(item.embedding)
-                
-        except openai.OpenAIError as e:
-            logger.error(f"OpenAI API error in batch {i // batch_size + 1}: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error in batch processing: {e}")
-            raise
-
-    return embeddings
+        # Pad all vectors to 1536 dimensions
+        padded_embeddings = [_pad_vector(vec) for vec in raw_embeddings]
+        return padded_embeddings
+    except Exception as e:
+        logger.error(f"Error in local get_embeddings_batch: {e}")
+        raise

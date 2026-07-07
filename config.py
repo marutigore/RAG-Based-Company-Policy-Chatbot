@@ -14,56 +14,72 @@ logging.basicConfig(
 )
 logger = logging.getLogger("config")
 
-# Load environment variables from .env file if it exists
-# This enables local development using a .env file
+# Load environment variables from .env file (force override to prioritize local settings)
 try:
-    load_dotenv()
-    logger.info("Environment variables loaded from .env file.")
+    load_dotenv(override=True)
+    logger.info("Environment variables loaded from .env file (override=True).")
 except Exception as e:
     logger.warning(f"Error loading .env file (using system environment): {e}")
 
-raw_key = os.getenv("OPENAI_API_KEY", "")
-OPENAI_API_KEY: str = raw_key.replace('\u2011', '-').replace('\u2013', '-').replace('\u2014', '-').strip()
-EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+# Check for Gemini key first (very generous free tier, no billing required)
+GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+raw_openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+
+# If Gemini Key is present and valid, dynamically route OpenAI client calls to Google Gemini API
+if GEMINI_KEY and "your_actual_key" not in GEMINI_KEY.lower() and GEMINI_KEY != "":
+    logger.info("Configuring Gemini API (OpenAI-compatible) endpoint for LLM completion.")
+    OPENAI_API_KEY = GEMINI_KEY
+    OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    LLM_MODEL = "gemini-1.5-flash"
+else:
+    logger.info("Configuring standard OpenAI API endpoint for LLM completion.")
+    OPENAI_API_KEY = raw_openai_key.replace('\u2011', '-').replace('\u2013', '-').replace('\u2014', '-').strip()
+    OPENAI_BASE_URL = None
+    LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+
+# We use sentence-transformers locally, so this setting is a fallback name
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 
 # Parse integer configs with error recovery to defaults
 try:
-    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "500"))
+    CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
 except ValueError:
     logger.warning("Invalid CHUNK_SIZE in env, defaulting to 500")
     CHUNK_SIZE = 500
 
 try:
-    CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "50"))
+    CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "50"))
 except ValueError:
     logger.warning("Invalid CHUNK_OVERLAP in env, defaulting to 50")
     CHUNK_OVERLAP = 50
 
-VECTOR_DB_DIR: str = os.getenv("VECTOR_DB_DIR", "./chroma_db")
-LOG_LEVEL_STR: str = os.getenv("LOG_LEVEL", "INFO").upper()
+VECTOR_DB_DIR = os.getenv("VECTOR_DB_DIR", "./chroma_db")
+LOG_LEVEL_STR = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # Map log level string to logging levels
-LOG_LEVEL: int = getattr(logging, LOG_LEVEL_STR, logging.INFO)
+LOG_LEVEL = getattr(logging, LOG_LEVEL_STR, logging.INFO)
 
 
 def check_keys() -> bool:
     """
-    Validates that the required OpenAI API key is set and is not a placeholder.
-
-    Returns:
-        bool: True if key is valid and usable, False otherwise.
-
-    Example:
-        >>> from config import check_keys
-        >>> is_valid = check_keys()
-        >>> print(is_valid)
-        True
+    Validates that a required API key is set and is not a placeholder.
     """
-    # Check if key is missing, empty, or still set to the placeholder string
-    if not OPENAI_API_KEY or OPENAI_API_KEY.strip() == "" or "your-openai-api-key" in OPENAI_API_KEY.lower() or "your_actual_key" in OPENAI_API_KEY.lower():
-        logger.error("OPENAI_API_KEY is not set or is still the placeholder value.")
-        return False
+    if GEMINI_KEY and "your_actual_key" not in GEMINI_KEY.lower() and GEMINI_KEY != "":
+        return True
     
-    logger.info("OPENAI_API_KEY check passed successfully.")
-    return True
+    if OPENAI_API_KEY and OPENAI_API_KEY.strip() != "" and "your-openai-api-key" not in OPENAI_API_KEY.lower() and "your_actual_key" not in OPENAI_API_KEY.lower() and "sk-<your" not in OPENAI_API_KEY.lower():
+        return True
+        
+    logger.error("No valid API Key found. Please add a valid OPENAI_API_KEY or GEMINI_API_KEY to your .env file.")
+    return False
+
+
+def get_openai_client():
+    """
+    Initializes and returns an OpenAI client instance routed to the configured provider.
+    """
+    import openai
+    return openai.OpenAI(
+        api_key=OPENAI_API_KEY,
+        base_url=OPENAI_BASE_URL
+    )
