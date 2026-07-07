@@ -14,12 +14,12 @@ import openai
 import config
 from utils.document_loader import load_pdf
 from utils.chunker import split_documents
-from utils.retriever import add_documents_to_db, query_db, reset_db, get_collection
+from utils.retriever import add_documents_to_db, query_db, reset_db, get_collection, get_indexed_documents, delete_document_from_db
 from utils.validator import validate_query, evaluate_faithfulness, evaluate_answer_relevancy
 
 # Setup page config first
 st.set_page_config(
-    page_title="RAG Policy Portal",
+    page_title="Synthara RAG Portal",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -121,6 +121,30 @@ CUSTOM_CSS = """
         letter-spacing: 1.5px;
     }
 
+    /* Portal Workspace Container */
+    .workspace-card {
+        background: rgba(30, 41, 59, 0.25) !important;
+        backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 16px !important;
+        padding: 30px !important;
+        margin-bottom: 25px !important;
+        animation: fadeInUp 0.8s ease-out;
+    }
+
+    /* Registry Table Container */
+    .registry-row {
+        background: rgba(30, 41, 59, 0.35) !important;
+        border: 1px solid rgba(255, 255, 255, 0.04) !important;
+        border-radius: 10px !important;
+        padding: 15px 20px !important;
+        margin-bottom: 10px !important;
+        transition: border-color 0.2s ease !important;
+    }
+    .registry-row:hover {
+        border-color: rgba(167, 139, 250, 0.2) !important;
+    }
+
     /* General Aesthetics */
     .stAlert {
         border-radius: 8px !important;
@@ -131,7 +155,7 @@ CUSTOM_CSS = """
         background: linear-gradient(90deg, #C084FC 0%, #6366F1 50%, #EC4899 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 10px;
+        margin-bottom: 5px;
         font-size: 2.8em;
     }
     .citation-card {
@@ -156,6 +180,21 @@ CUSTOM_CSS = """
     .badge-green { background-color: #10B981; }
     .badge-yellow { background-color: #F59E0B; }
     .badge-red { background-color: #EF4444; }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+        width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.5);
+    }
+    ::-webkit-scrollbar-thumb {
+        background: rgba(139, 92, 246, 0.4);
+        border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(139, 92, 246, 0.6);
+    }
 
     /* CSS Keyframes */
     @keyframes fadeInUp {
@@ -190,8 +229,12 @@ def init_session_state() -> None:
             st.session_state.db_initialized = False
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "dashboard"
+
+
 def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
-    """Constructs the prompt context and calls the OpenAI API to generate an answer."""
+    """Constructs the prompt context and calls the OpenAI/Gemini API to generate an answer."""
     client = config.get_openai_client()
     
     context_blocks: List[str] = []
@@ -218,7 +261,7 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
     )
 
     try:
-        logger.info("Calling OpenAI chat completion...")
+        logger.info("Calling LLM completions...")
         response = client.chat.completions.create(
             model=config.LLM_MODEL,
             messages=[
@@ -314,11 +357,14 @@ def main() -> None:
         except Exception:
             pass
 
+    # Exposes active AI backend text based on key settings
+    ai_backend = "Gemini AI" if config.OPENAI_BASE_URL else "OpenAI Engine"
+
     st.markdown(
         f"<div class='stat-container'>"
         f"<div class='stat-card'><div class='stat-lbl'>📦 Knowledge Nodes</div><div class='stat-val'>{total_chunks}</div></div>"
         f"<div class='stat-card'><div class='stat-lbl'>🛡️ Safety Guard</div><div class='stat-val' style='color:#10B981;'>Active</div></div>"
-        f"<div class='stat-card'><div class='stat-lbl'>⚙️ AI Model</div><div class='stat-val' style='font-size:1.6em; line-height:2.1;'>{config.LLM_MODEL}</div></div>"
+        f"<div class='stat-card'><div class='stat-lbl'>⚙️ AI Backend</div><div class='stat-val' style='font-size:1.6em; line-height:2.1;'>{ai_backend}</div></div>"
         f"<div class='stat-card'><div class='stat-lbl'>📈 Avg Groundedness</div><div class='stat-val' style='color:#A78BFA;'>95.4%</div></div>"
         f"</div>",
         unsafe_allow_html=True
@@ -330,8 +376,26 @@ def main() -> None:
         
         # User account indicator
         st.info("👤 Logged in as: **admin**")
-        if st.button("🚪 Logout", use_container_width=True):
-            st.session_state.logged_in = False
+
+        st.divider()
+
+        # Side Menu Sub-navigation (Active highlight with active emoji)
+        st.markdown("<h3 style='color:#A78BFA; font-size:1.05em; letter-spacing:1.5px; margin-bottom:12px;'>🧭 MENU SECTIONS</h3>", unsafe_allow_html=True)
+        
+        lbl_dash = "🔥 Dashboard Portal" if st.session_state.current_page == "dashboard" else "🏠 Home Dashboard"
+        lbl_upload = "🔥 Ingest Pipeline" if st.session_state.current_page == "upload" else "📁 Document Ingestion"
+        lbl_chat = "🔥 Chat Workspace" if st.session_state.current_page == "chat" else "💬 RAG Chat Space"
+        
+        if st.button(lbl_dash, use_container_width=True):
+            st.session_state.current_page = "dashboard"
+            st.rerun()
+            
+        if st.button(lbl_upload, use_container_width=True):
+            st.session_state.current_page = "upload"
+            st.rerun()
+            
+        if st.button(lbl_chat, use_container_width=True):
+            st.session_state.current_page = "chat"
             st.rerun()
 
         st.divider()
@@ -339,15 +403,63 @@ def main() -> None:
         # Key validity verification status
         is_api_key_valid = config.check_keys()
         if is_api_key_valid:
-            st.success("OpenAI API Key: Active ✅")
+            st.success("API Key Status: Active ✅")
         else:
-            st.error("OpenAI API Key: Missing ❌")
-            st.warning("Please create a `.env` file with `OPENAI_API_KEY` to enable the chatbot.")
+            st.error("API Key Status: Missing ❌")
+            st.warning("Please configure your `.env` file with `OPENAI_API_KEY` or `GEMINI_API_KEY` to enable the chatbot.")
 
         st.divider()
 
+        if st.button("🚪 Logout Portal", use_container_width=True):
+            st.session_state.logged_in = False
+            st.rerun()
+
+        # Model Info
+        st.caption(f"**Embedding Model:** `{config.EMBEDDING_MODEL}` (Local)")
+        st.caption(f"**LLM Model:** `{config.LLM_MODEL}` ({ai_backend})")
+
+    # ==================== PAGE 1: HOME DASHBOARD ====================
+    if st.session_state.current_page == "dashboard":
+        st.markdown("<div class='workspace-card'>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color:#F3F4F6; margin-top:0;'>🏠 Welcome to the Synthara Portal</h2>", unsafe_allow_html=True)
+        st.write("This workspace is designed to give you complete visibility into your RAG Knowledge Base. Below you can view the registry of indexed document nodes and delete files from memory.")
+
+        # Document Registry
+        indexed_docs = get_indexed_documents()
+        if not indexed_docs:
+            st.info("👋 No files have been uploaded yet. Click on **Document Ingestion** in the sidebar to start loading corporate manuals.")
+        else:
+            st.markdown("<h3 style='color:#F3F4F6; margin-top:20px; font-size:1.2em;'>📋 Indexed Document Registry</h3>", unsafe_allow_html=True)
+            for doc in indexed_docs:
+                st.markdown(f"<div class='registry-row'>", unsafe_allow_html=True)
+                col_file, col_pages, col_chunks, col_action = st.columns([5, 2, 2, 2])
+                with col_file:
+                    st.markdown(f"<span style='color:#C084FC; font-weight:bold; font-size:1.05em;'>📄 {doc['filename']}</span>", unsafe_allow_html=True)
+                with col_pages:
+                    st.markdown(f"<span style='color:#94A3B8;'>📄 {doc['pages']} page(s)</span>", unsafe_allow_html=True)
+                with col_chunks:
+                    st.markdown(f"<span style='color:#94A3B8;'>🧩 {doc['chunks']} chunks</span>", unsafe_allow_html=True)
+                with col_action:
+                    if st.button("🗑️ Delete File", key=f"del_{doc['filename']}", use_container_width=True):
+                        try:
+                            delete_document_from_db(doc["filename"])
+                            # Check if the DB is now empty to update state
+                            st.session_state.db_initialized = (get_collection().count() > 0)
+                            st.success(f"Deleted {doc['filename']}")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to delete: {e}")
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ==================== PAGE 2: DOCUMENT UPLOADER ====================
+    elif st.session_state.current_page == "upload":
+        st.markdown("<div class='workspace-card'>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color:#F3F4F6; margin-top:0;'>📁 Document Ingestion Pipeline</h2>", unsafe_allow_html=True)
+        st.write("Drag and drop corporate manuals or scanned Handbooks. The pipeline runs local text tokenizers, and utilizes Vision OCR to read scanned images automatically.")
+
         # PDF Uploader
-        st.subheader("📁 Upload Policy PDF Documents")
         uploaded_files = st.file_uploader(
             "Select one or more PDF files",
             type=["pdf"],
@@ -357,11 +469,11 @@ def main() -> None:
 
         # Indexing Operation
         if uploaded_files:
-            if st.button("🚀 Process & Index Documents", use_container_width=True):
+            if st.button("🚀 Ingest & Index Documents", use_container_width=True):
                 if not is_api_key_valid:
-                    st.error("Please configure a valid API Key before indexing.")
+                    st.error("Please configure a valid API Key in your `.env` file before indexing.")
                 else:
-                    with st.spinner("Parsing PDFs and generating database indexes..."):
+                    with st.spinner("Extracting contents and loading database indices..."):
                         temp_dir = "./temp_uploads"
                         try:
                             os.makedirs(temp_dir, exist_ok=True)
@@ -382,7 +494,7 @@ def main() -> None:
                                 chunks = split_documents(all_pages)
                                 add_documents_to_db(chunks)
                                 st.session_state.db_initialized = True
-                                st.success(f"Indexed {len(chunks)} text chunks successfully!")
+                                st.success(f"Successfully processed and indexed {len(chunks)} text chunks!")
                                 st.rerun()
                             else:
                                 st.error("No extractable text found in the uploaded documents.")
@@ -393,8 +505,9 @@ def main() -> None:
         st.divider()
 
         # Database Management / Reset
-        st.subheader("🧹 Database Operations")
-        if st.button("🗑️ Reset Vector Database", use_container_width=True):
+        st.subheader("🧹 System Database Operations")
+        st.write("Need a clean start? Wiping the database will remove all uploaded knowledge nodes.")
+        if st.button("🗑️ Reset All Databases", use_container_width=True):
             try:
                 reset_db()
                 st.session_state.db_initialized = False
@@ -404,94 +517,32 @@ def main() -> None:
             except Exception as e:
                 st.error(f"Reset failed: {e}")
 
-        # Model Info
-        st.divider()
-        st.caption(f"**Embedding Model:** `{config.EMBEDDING_MODEL}`")
-        st.caption(f"**LLM Model:** `{config.LLM_MODEL}`")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # Main Chat view
-    if not st.session_state.db_initialized:
-        st.info("👋 Welcome! To start asking policy questions, please upload corporate PDF documents in the sidebar and click **Process & Index Documents**.")
-        return
+    # ==================== PAGE 3: CHAT WORKSPACE ====================
+    elif st.session_state.current_page == "chat":
+        st.markdown("<div class='workspace-card'>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color:#F3F4F6; margin-top:0;'>💬 Conversational RAG Workspace</h2>", unsafe_allow_html=True)
+        st.write("Query the indexed handbook knowledge. All answers include source citations and inline audit evaluation scores.")
 
-    # Display conversational chat history
-    for msg in st.session_state.chat_history:
-        with st.chat_message(msg["role"]):
-            st.write(msg["content"])
-            
-            # Show citations and evaluations if they are attached to assistant messages
-            if msg["role"] == "assistant" and "citations" in msg:
-                with st.expander("📖 View Retrieved Contexts & Citations"):
-                    for idx, chunk in enumerate(msg["citations"]):
-                        source = chunk["metadata"].get("source", "Unknown Document")
-                        page = chunk["metadata"].get("page", "?")
-                        score = chunk.get("similarity", 0.0)
-                        
-                        st.markdown(
-                            f"<div class='citation-card'>"
-                            f"<strong>Source {idx+1}:</strong> {source} (Page {page})<br/>"
-                            f"<strong>Similarity Match:</strong> {score * 100:.1f}%<br/>"
-                            f"<p style='margin-top: 5px; color: #E2E8F0; font-style: italic;'>\"{chunk['text'][:300]}...\"</p>"
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
+        if not st.session_state.db_initialized:
+            st.info("👋 The knowledge base is empty. Please upload some Handbooks under the **Document Ingestion** menu to start querying.")
+            st.markdown("</div>", unsafe_allow_html=True)
+            return
+
+        # Display conversational chat history
+        for msg in st.session_state.chat_history:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
                 
-                if "evaluations" in msg:
-                    with st.expander("📊 Evaluation Metrics (LLM-as-a-Judge)"):
-                        faith = msg["evaluations"].get("faithfulness", {})
-                        relev = msg["evaluations"].get("relevancy", {})
-                        
-                        f_score = faith.get("score", 0.0)
-                        f_badge = "badge-green" if f_score >= 0.8 else ("badge-yellow" if f_score >= 0.5 else "badge-red")
-                        
-                        r_score = relev.get("score", 0.0)
-                        r_badge = "badge-green" if r_score >= 0.8 else ("badge-yellow" if r_score >= 0.5 else "badge-red")
-                        
-                        st.markdown(
-                            f"#### **Faithfulness Score (Groundedness)**<br/>"
-                            f"<span class='metric-badge {f_badge}'>{f_score:.2f} / 1.00</span><br/>"
-                            f"<em>Reasoning:</em> {faith.get('reasoning', 'No reasoning supplied.')}",
-                            unsafe_allow_html=True
-                        )
-                        st.divider()
-                        st.markdown(
-                            f"#### **Answer Relevancy Score**<br/>"
-                            f"<span class='metric-badge {r_badge}'>{r_score:.2f} / 1.00</span><br/>"
-                            f"<em>Reasoning:</em> {relev.get('reasoning', 'No reasoning supplied.')}",
-                            unsafe_allow_html=True
-                        )
-
-    # Chat Input Box
-    query = st.chat_input("Enter your policy question here...")
-
-    if query:
-        if not is_api_key_valid:
-            st.error("Please configure the `OPENAI_API_KEY` inside `.env` to start asking questions.")
-            return
-
-        try:
-            cleaned_query = validate_query(query)
-        except ValueError as e:
-            st.error(str(e))
-            return
-
-        with st.chat_message("user"):
-            st.write(cleaned_query)
-        
-        st.session_state.chat_history.append({"role": "user", "content": cleaned_query})
-
-        with st.chat_message("assistant"):
-            with st.spinner("Analyzing policy documents and generating answer..."):
-                try:
-                    res = run_pipeline(cleaned_query)
-                    st.write(res["answer"])
-                    
-                    # Citations Accordion
+                # Show citations and evaluations if they are attached to assistant messages
+                if msg["role"] == "assistant" and "citations" in msg:
                     with st.expander("📖 View Retrieved Contexts & Citations"):
-                        for idx, chunk in enumerate(res["citations"]):
+                        for idx, chunk in enumerate(msg["citations"]):
                             source = chunk["metadata"].get("source", "Unknown Document")
                             page = chunk["metadata"].get("page", "?")
                             score = chunk.get("similarity", 0.0)
+                            
                             st.markdown(
                                 f"<div class='citation-card'>"
                                 f"<strong>Source {idx+1}:</strong> {source} (Page {page})<br/>"
@@ -500,53 +551,122 @@ def main() -> None:
                                 f"</div>",
                                 unsafe_allow_html=True
                             )
-
-                    # Evaluations Accordion
-                    with st.expander("📊 Evaluation Metrics (LLM-as-a-Judge)"):
-                        faith = res["evaluation"].get("faithfulness", {})
-                        relev = res["evaluation"].get("relevancy", {})
-                        
-                        f_score = faith.get("score", 0.0)
-                        f_badge = "badge-green" if f_score >= 0.8 else ("badge-yellow" if f_score >= 0.5 else "badge-red")
-                        
-                        r_score = relev.get("score", 0.0)
-                        r_badge = "badge-green" if r_score >= 0.8 else ("badge-yellow" if r_score >= 0.5 else "badge-red")
-                        
-                        st.markdown(
-                            f"#### **Faithfulness Score (Groundedness)**<br/>"
-                            f"<span class='metric-badge {f_badge}'>{f_score:.2f} / 1.00</span><br/>"
-                            f"<em>Reasoning:</em> {faith.get('reasoning', 'No reasoning supplied.')}",
-                            unsafe_allow_html=True
-                        )
-                        st.divider()
-                        st.markdown(
-                            f"#### **Answer Relevancy Score**<br/>"
-                            f"<span class='metric-badge {r_badge}'>{r_score:.2f} / 1.00</span><br/>"
-                            f"<em>Reasoning:</em> {relev.get('reasoning', 'No reasoning supplied.')}",
-                            unsafe_allow_html=True
-                        )
-
-                    # Export Conversation/Answer Button
-                    download_text = f"Question: {cleaned_query}\n\nAnswer: {res['answer']}\n\nEvaluation Metrics:\n- Faithfulness: {f_score}\n- Relevancy: {r_score}"
-                    st.download_button(
-                        label="📥 Download Answer & Metrics",
-                        data=download_text,
-                        file_name="policy_answer.txt",
-                        mime="text/plain"
-                    )
-
-                    # Add response to persistent state
-                    st.session_state.chat_history.append({
-                        "role": "assistant",
-                        "content": res["answer"],
-                        "citations": res["citations"],
-                        "evaluations": res["evaluation"]
-                    })
-                    st.rerun()
                     
-                except Exception as e:
-                    logger.error(f"Error executing chat pipeline: {e}")
-                    st.error(f"Failed to query knowledge base: {e}")
+                    if "evaluations" in msg:
+                        with st.expander("📊 Evaluation Metrics (LLM-as-a-Judge)"):
+                            faith = msg["evaluations"].get("faithfulness", {})
+                            relev = msg["evaluations"].get("relevancy", {})
+                            
+                            f_score = faith.get("score", 0.0)
+                            f_badge = "badge-green" if f_score >= 0.8 else ("badge-yellow" if f_score >= 0.5 else "badge-red")
+                            
+                            r_score = relev.get("score", 0.0)
+                            r_badge = "badge-green" if r_score >= 0.8 else ("badge-yellow" if r_score >= 0.5 else "badge-red")
+                            
+                            st.markdown(
+                                f"#### **Faithfulness Score (Groundedness)**<br/>"
+                                f"<span class='metric-badge {f_badge}'>{f_score:.2f} / 1.00</span><br/>"
+                                f"<em>Reasoning:</em> {faith.get('reasoning', 'No reasoning supplied.')}",
+                                unsafe_allow_html=True
+                            )
+                            st.divider()
+                            st.markdown(
+                                f"#### **Answer Relevancy Score**<br/>"
+                                f"<span class='metric-badge {r_badge}'>{r_score:.2f} / 1.00</span><br/>"
+                                f"<em>Reasoning:</em> {relev.get('reasoning', 'No reasoning supplied.')}",
+                                unsafe_allow_html=True
+                            )
+
+        # Chat Input Box
+        query = st.chat_input("Ask a question about the indexed handbooks...")
+
+        if query:
+            if not is_api_key_valid:
+                st.error("Please configure a valid API Key in your `.env` file to start asking questions.")
+                st.markdown("</div>", unsafe_allow_html=True)
+                return
+
+            try:
+                cleaned_query = validate_query(query)
+            except ValueError as e:
+                st.error(str(e))
+                st.markdown("</div>", unsafe_allow_html=True)
+                return
+
+            with st.chat_message("user"):
+                st.write(cleaned_query)
+            
+            st.session_state.chat_history.append({"role": "user", "content": cleaned_query})
+
+            with st.chat_message("assistant"):
+                with st.spinner("Analyzing policy documents and generating answer..."):
+                    try:
+                        res = run_pipeline(cleaned_query)
+                        st.write(res["answer"])
+                        
+                        # Citations Accordion
+                        with st.expander("📖 View Retrieved Contexts & Citations"):
+                            for idx, chunk in enumerate(res["citations"]):
+                                source = chunk["metadata"].get("source", "Unknown Document")
+                                page = chunk["metadata"].get("page", "?")
+                                score = chunk.get("similarity", 0.0)
+                                st.markdown(
+                                    f"<div class='citation-card'>"
+                                    f"<strong>Source {idx+1}:</strong> {source} (Page {page})<br/>"
+                                    f"<strong>Similarity Match:</strong> {score * 100:.1f}%<br/>"
+                                    f"<p style='margin-top: 5px; color: #E2E8F0; font-style: italic;'>\"{chunk['text'][:300]}...\"</p>"
+                                    f"</div>",
+                                    unsafe_allow_html=True
+                                )
+
+                        # Evaluations Accordion
+                        with st.expander("📊 Evaluation Metrics (LLM-as-a-Judge)"):
+                            faith = res["evaluation"].get("faithfulness", {})
+                            relev = res["evaluation"].get("relevancy", {})
+                            
+                            f_score = faith.get("score", 0.0)
+                            f_badge = "badge-green" if f_score >= 0.8 else ("badge-yellow" if f_score >= 0.5 else "badge-red")
+                            
+                            r_score = relev.get("score", 0.0)
+                            r_badge = "badge-green" if r_score >= 0.8 else ("badge-yellow" if r_score >= 0.5 else "badge-red")
+                            
+                            st.markdown(
+                                f"#### **Faithfulness Score (Groundedness)**<br/>"
+                                f"<span class='metric-badge {f_badge}'>{f_score:.2f} / 1.00</span><br/>"
+                                f"<em>Reasoning:</em> {faith.get('reasoning', 'No reasoning supplied.')}",
+                                unsafe_allow_html=True
+                            )
+                            st.divider()
+                            st.markdown(
+                                f"#### **Answer Relevancy Score**<br/>"
+                                f"<span class='metric-badge {r_badge}'>{r_score:.2f} / 1.00</span><br/>"
+                                f"<em>Reasoning:</em> {relev.get('reasoning', 'No reasoning supplied.')}",
+                                unsafe_allow_html=True
+                            )
+
+                        # Export Conversation/Answer Button
+                        download_text = f"Question: {cleaned_query}\n\nAnswer: {res['answer']}\n\nEvaluation Metrics:\n- Faithfulness: {f_score}\n- Relevancy: {r_score}"
+                        st.download_button(
+                            label="📥 Download Answer & Metrics",
+                            data=download_text,
+                            file_name="policy_answer.txt",
+                            mime="text/plain"
+                        )
+
+                        # Add response to persistent state
+                        st.session_state.chat_history.append({
+                            "role": "assistant",
+                            "content": res["answer"],
+                            "citations": res["citations"],
+                            "evaluations": res["evaluation"]
+                        })
+                        st.rerun()
+                        
+                    except Exception as e:
+                        logger.error(f"Error executing chat pipeline: {e}")
+                        st.error(f"Failed to query knowledge base: {e}")
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
