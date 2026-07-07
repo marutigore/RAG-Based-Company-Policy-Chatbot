@@ -113,42 +113,36 @@ CUSTOM_CSS = """
         animation: pulseGlow 6s ease-in-out infinite;
     }
 
-    /* Login Card Panel */
-    .login-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 80vh;
-        z-index: 10;
-        position: relative;
-    }
-    .login-card {
+    /* Form centering override for login page */
+    div[data-testid="stForm"] {
         background: rgba(19, 26, 38, 0.65) !important;
-        backdrop-filter: blur(16px) !important;
-        -webkit-backdrop-filter: blur(16px) !important;
+        backdrop-filter: blur(20px) !important;
+        -webkit-backdrop-filter: blur(20px) !important;
         border: 1px solid var(--glass-border) !important;
         border-radius: 20px !important;
         padding: 40px !important;
-        width: 460px !important;
-        box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6) !important;
+        max-width: 440px !important;
+        margin: 15vh auto !important; /* Perfect vertical and horizontal centering */
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5) !important;
         animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1);
     }
+    
     .login-logo {
         text-align: center;
         font-family: 'Space Grotesk', sans-serif;
-        font-size: 2.5em;
-        font-weight: 800;
+        font-size: 1.85em; /* Cleaner, sleeker font size */
+        font-weight: 700;
         background: linear-gradient(90deg, #60A5FA 0%, #A78BFA 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 5px;
-        letter-spacing: -1px;
+        letter-spacing: -0.5px;
     }
     .login-desc {
         text-align: center;
         color: var(--text-muted);
-        font-size: 0.92em;
-        margin-bottom: 30px;
+        font-size: 0.88em;
+        margin-top: 5px;
     }
 
     /* Header Logo Text Gradient */
@@ -438,32 +432,27 @@ def run_pipeline(question: str) -> Dict[str, Any]:
 def render_login_page() -> None:
     """Renders the glassmorphic login interface with floating mesh background."""
     st.markdown("<div class='glow-orb'></div>", unsafe_allow_html=True)
-    st.markdown("<div class='login-container'>", unsafe_allow_html=True)
     
-    col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-    with col_l2:
+    # Render the login form wrapper directly, styled with auto-margins for absolute screen centering
+    with st.form("login_form"):
         st.markdown(
-            "<div class='login-card'>"
+            "<div style='text-align: center; margin-bottom: 25px;'>"
             "<div class='login-logo'>⚡ Synthara Portal</div>"
-            "<div class='login-desc'>Enter portal credentials to access RAG Chatbot</div>",
+            "<div class='login-desc'>Enter portal credentials to access RAG Chatbot</div>"
+            "</div>",
             unsafe_allow_html=True
         )
+        username = st.text_input("Username", value="admin", placeholder="Enter admin username")
+        password = st.text_input("Password", type="password", value="password", placeholder="Enter password")
+        submit = st.form_submit_button("🚀 Enter Workspace", use_container_width=True)
         
-        with st.form("login_form"):
-            username = st.text_input("Username", value="admin", placeholder="Enter admin username")
-            password = st.text_input("Password", type="password", value="password", placeholder="Enter password")
-            submit = st.form_submit_button("🚀 Enter Workspace", use_container_width=True)
-            
-            if submit:
-                if username == "admin" and password == "password":
-                    st.session_state.logged_in = True
-                    st.success("Authorized successfully. Launching portal...")
-                    st.rerun()
-                else:
-                    st.error("Invalid credentials. Hint: admin / password.")
-        
-        st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+        if submit:
+            if username == "admin" and password == "password":
+                st.session_state.logged_in = True
+                st.success("Authorized successfully. Launching portal...")
+                st.rerun()
+            else:
+                st.error("Invalid credentials. Hint: admin / password.")
 
 
 def main() -> None:
