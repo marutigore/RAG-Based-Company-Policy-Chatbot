@@ -311,6 +311,16 @@ CUSTOM_CSS = """
     .stButton>button:active {
         transform: translateY(0px) !important;
     }
+
+    /* Style the RIGHT column (chat panel) directly via nth-child so
+       we don't need an HTML wrapper div that breaks Streamlit nesting */
+    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child > div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: rgba(19, 26, 38, 0.45) !important;
+        backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 16px !important;
+        padding: 24px !important;
+    }
 </style>
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
@@ -356,6 +366,24 @@ def get_indexed_documents() -> List[Dict[str, Any]]:
         return []
 
 
+def sanitize_text(text: str) -> str:
+    """Replaces problematic unicode characters (non-breaking hyphens, dashes, etc.) with ASCII equivalents."""
+    replacements = {
+        '\u2011': '-',   # non-breaking hyphen
+        '\u2013': '-',   # en dash
+        '\u2014': '-',   # em dash
+        '\u2018': "'",   # left single quote
+        '\u2019': "'",   # right single quote
+        '\u201c': '"',   # left double quote
+        '\u201d': '"',   # right double quote
+        '\u2026': '...',  # ellipsis
+        '\u00a0': ' ',   # non-breaking space
+    }
+    for orig, repl in replacements.items():
+        text = text.replace(orig, repl)
+    return text
+
+
 def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
     """Constructs the prompt context and calls the configured provider client."""
     client = config.get_openai_client()
@@ -364,7 +392,8 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
     for idx, chunk in enumerate(retrieved_chunks):
         source = chunk["metadata"].get("source", "Unknown Document")
         page = chunk["metadata"].get("page", "?")
-        context_blocks.append(f"Excerpt [{idx + 1}] (Source: {source}, Page {page}):\n{chunk['text']}")
+        chunk_text = sanitize_text(chunk['text'])
+        context_blocks.append(f"Excerpt [{idx + 1}] (Source: {source}, Page {page}):\n{chunk_text}")
 
     context_str = "\n\n".join(context_blocks)
 
@@ -581,9 +610,8 @@ def main() -> None:
         
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # RIGHT PANEL: CHAT CONSOLE
+    # RIGHT PANEL: CHAT CONSOLE (styled via CSS selector, no HTML wrapper needed)
     with col_workspace_right:
-        st.markdown("<div class='glass-panel' style='min-height:550px;'>", unsafe_allow_html=True)
         st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>💬 Interactive Chat Console</h3>", unsafe_allow_html=True)
 
         if not st.session_state.db_initialized:
@@ -718,8 +746,6 @@ def main() -> None:
                         except Exception as e:
                             logger.error(f"Error executing chat pipeline: {e}")
                             st.error(f"Failed to query knowledge base: {e}")
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":

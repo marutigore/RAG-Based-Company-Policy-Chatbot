@@ -13,6 +13,19 @@ import config
 logger = logging.getLogger("utils.validator")
 
 
+def _sanitize(text: str) -> str:
+    """Replaces problematic unicode characters with ASCII equivalents."""
+    replacements = {
+        '\u2011': '-', '\u2013': '-', '\u2014': '-',
+        '\u2018': "'", '\u2019': "'",
+        '\u201c': '"', '\u201d': '"',
+        '\u2026': '...', '\u00a0': ' ',
+    }
+    for orig, repl in replacements.items():
+        text = text.replace(orig, repl)
+    return text
+
+
 def validate_query(query: str) -> str:
     """
     Validates a natural language user query.
@@ -81,7 +94,8 @@ def evaluate_faithfulness(contexts: List[str], answer: str) -> Dict[str, Any]:
         return {"score": 0.0, "reasoning": "Missing inputs to evaluate."}
 
     # Format retrieved contexts into a structured string
-    context_str = "\n---\n".join([f"Context {i+1}:\n{c}" for i, c in enumerate(contexts)])
+    context_str = "\n---\n".join([f"Context {i+1}:\n{_sanitize(c)}" for i, c in enumerate(contexts)])
+    answer = _sanitize(answer)
 
     system_prompt = (
         "You are an objective evaluation auditor. Assess if the candidate answer is strictly grounded in the provided contexts.\n"
@@ -155,8 +169,8 @@ def evaluate_answer_relevancy(question: str, answer: str) -> Dict[str, Any]:
     )
 
     user_prompt = (
-        f"Question:\n{question}\n\n"
-        f"Candidate Answer:\n{answer}\n\n"
+        f"Question:\n{_sanitize(question)}\n\n"
+        f"Candidate Answer:\n{_sanitize(answer)}\n\n"
         f"Output JSON formatting rule:\n"
         f"{{\n"
         f"  \"score\": 1.0,\n"
