@@ -90,71 +90,75 @@ def load_pdf(file_path: str, custom_filename: Optional[str] = None) -> List[Dict
         
         # Iterate page by page
         for page_num in range(len(doc)):
-            page = doc.load_page(page_num)
-            
-            # Extract plain text
-            raw_text = page.get_text()
-            
-            # Run text cleaning
-            cleaned_page_text = clean_text(raw_text)
-            
-            # If the page is empty, try to extract text using Vision-based OCR fallback (gpt-4o-mini)
-            if not cleaned_page_text:
-                import config
-                if config.OPENAI_API_KEY:
-                    try:
-                        logger.warning(f"Page {page_num + 1} is empty or image-only. Attempting Vision-based OCR fallback...")
-                        import base64
-                        import openai
-                        
-                        # Render page to PNG bytes
-                        pix = page.get_pixmap()
-                        img_bytes = pix.tobytes("png")
-                        base64_image = base64.b64encode(img_bytes).decode('utf-8')
-                        
-                        # Send image to the configured model
-                        client = config.get_openai_client()
-                        response = client.chat.completions.create(
-                            model=config.LLM_MODEL,
-                            messages=[
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {"type": "text", "text": "Extract all readable text, tables, or diagram details from this document page image. Output only the raw text content without markdown codeblocks, notes, or explanations."},
-                                        {
-                                            "type": "image_url",
-                                            "image_url": {
-                                                "url": f"data:image/png;base64,{base64_image}"
-                                            }
-                                        }
-                                    ]
-                                }
-                            ],
-                            max_tokens=1000
-                        )
-                        ocr_text = response.choices[0].message.content or ""
-                        cleaned_page_text = clean_text(ocr_text)
-                        if cleaned_page_text:
-                            logger.info(f"Successfully extracted {len(cleaned_page_text)} characters via Vision OCR on page {page_num + 1}")
-                    except Exception as ocr_err:
-                        logger.error(f"Vision OCR fallback failed for page {page_num + 1}: {ocr_err}")
+            try:
+                page = doc.load_page(page_num)
                 
-                # If it's still empty, skip it
+                # Extract plain text
+                raw_text = page.get_text()
+                
+                # Run text cleaning
+                cleaned_page_text = clean_text(raw_text)
+                
+                # If the page is empty, try to extract text using Vision-based OCR fallback (gpt-4o-mini)
                 if not cleaned_page_text:
-                    logger.warning(f"Skipping empty or image-only page {page_num + 1} in {filename}")
-                    continue
-            
-            # Create page dictionary with metadata
-            page_info = {
-                "text": cleaned_page_text,
-                "metadata": {
-                    "source": filename,
-                    "page": page_num + 1,  # Store as 1-indexed page number
-                    "total_pages": len(doc)
+                    import config
+                    if config.OPENAI_API_KEY:
+                        try:
+                            logger.warning(f"Page {page_num + 1} is empty or image-only. Attempting Vision-based OCR fallback...")
+                            import base64
+                            import openai
+                            
+                            # Render page to PNG bytes
+                            pix = page.get_pixmap()
+                            img_bytes = pix.tobytes("png")
+                            base64_image = base64.b64encode(img_bytes).decode('utf-8')
+                            
+                            # Send image to the configured model
+                            client = config.get_openai_client()
+                            response = client.chat.completions.create(
+                                model=config.LLM_MODEL,
+                                messages=[
+                                    {
+                                        "role": "user",
+                                        "content": [
+                                            {"type": "text", "text": "Extract all readable text, tables, or diagram details from this document page image. Output only the raw text content without markdown codeblocks, notes, or explanations."},
+                                            {
+                                                "type": "image_url",
+                                                "image_url": {
+                                                    "url": f"data:image/png;base64,{base64_image}"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                ],
+                                max_tokens=1000
+                            )
+                            ocr_text = response.choices[0].message.content or ""
+                            cleaned_page_text = clean_text(ocr_text)
+                            if cleaned_page_text:
+                                logger.info(f"Successfully extracted {len(cleaned_page_text)} characters via Vision OCR on page {page_num + 1}")
+                        except Exception as ocr_err:
+                            logger.error(f"Vision OCR fallback failed for page {page_num + 1}: {ocr_err}")
+                    
+                    # If it's still empty, skip it
+                    if not cleaned_page_text:
+                        logger.warning(f"Skipping empty or image-only page {page_num + 1} in {filename}")
+                        continue
+                
+                # Create page dictionary with metadata
+                page_info = {
+                    "text": cleaned_page_text,
+                    "metadata": {
+                        "source": filename,
+                        "page": page_num + 1,  # Store as 1-indexed page number
+                        "total_pages": len(doc)
+                    }
                 }
-            }
-            pages_data.append(page_info)
-            logger.debug(f"Loaded page {page_num + 1} from {filename}")
+                pages_data.append(page_info)
+                logger.debug(f"Loaded page {page_num + 1} from {filename}")
+            except Exception as page_err:
+                logger.error(f"Failed to process page {page_num + 1} in {filename}: {page_err}")
+                continue
             
         logger.info(f"Successfully loaded {len(pages_data)} pages from {filename}")
         doc.close()
