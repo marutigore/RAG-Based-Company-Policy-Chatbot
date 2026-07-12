@@ -15,6 +15,12 @@ from utils.embedder import get_embedding, get_embeddings_batch
 # Initialize module logger
 logger = logging.getLogger("utils.retriever")
 
+import threading
+
+# Initialize locks for thread-safe client and collection initialization
+_client_lock = threading.Lock()
+_collection_lock = threading.Lock()
+
 # Persistent Chroma client reference
 _chroma_client: Optional[chromadb.PersistentClient] = None
 # Target collection reference
@@ -31,19 +37,21 @@ def get_db_client() -> chromadb.PersistentClient:
     """
     global _chroma_client
     if _chroma_client is None:
-        logger.info(f"Initializing persistent ChromaDB client at: {config.VECTOR_DB_DIR}")
-        
-        # Ensure target storage directory exists
-        try:
-            os.makedirs(config.VECTOR_DB_DIR, exist_ok=True)
-            # Create persistent client
-            _chroma_client = chromadb.PersistentClient(
-                path=config.VECTOR_DB_DIR,
-                settings=Settings(anonymized_telemetry=False)
-            )
-        except Exception as e:
-            logger.error(f"Error creating ChromaDB storage directory: {e}")
-            raise RuntimeError(f"Database initialization failed: {e}")
+        with _client_lock:
+            if _chroma_client is None:
+                logger.info(f"Initializing persistent ChromaDB client at: {config.VECTOR_DB_DIR}")
+                
+                # Ensure target storage directory exists
+                try:
+                    os.makedirs(config.VECTOR_DB_DIR, exist_ok=True)
+                    # Create persistent client
+                    _chroma_client = chromadb.PersistentClient(
+                        path=config.VECTOR_DB_DIR,
+                        settings=Settings(anonymized_telemetry=False)
+                    )
+                except Exception as e:
+                    logger.error(f"Error creating ChromaDB storage directory: {e}")
+                    raise RuntimeError(f"Database initialization failed: {e}")
             
     return _chroma_client
 
@@ -57,17 +65,19 @@ def get_collection() -> chromadb.Collection:
     """
     global _collection
     if _collection is None:
-        client = get_db_client()
-        try:
-            # Get or create collection. We pass None for embedding_function because we supply pre-computed embeddings.
-            _collection = client.get_or_create_collection(
-                name=COLLECTION_NAME,
-                metadata={"hnsw:space": "cosine"}  # Use cosine similarity
-            )
-            logger.info(f"ChromaDB collection '{COLLECTION_NAME}' successfully resolved.")
-        except Exception as e:
-            logger.error(f"Error fetching ChromaDB collection: {e}")
-            raise RuntimeError(f"Failed to fetch collection: {e}")
+        with _collection_lock:
+            if _collection is None:
+                client = get_db_client()
+                try:
+                    # Get or create collection. We pass None for embedding_function because we supply pre-computed embeddings.
+                    _collection = client.get_or_create_collection(
+                        name=COLLECTION_NAME,
+                        metadata={"hnsw:space": "cosine"}  # Use cosine similarity
+                    )
+                    logger.info(f"ChromaDB collection '{COLLECTION_NAME}' successfully resolved.")
+                except Exception as e:
+                    logger.error(f"Error fetching ChromaDB collection: {e}")
+                    raise RuntimeError(f"Failed to fetch collection: {e}")
             
     return _collection
 
