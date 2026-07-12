@@ -16,7 +16,7 @@ import openai
 import config
 from utils.document_loader import load_pdf
 from utils.chunker import split_documents
-from utils.retriever import add_documents_to_db, query_db, reset_db, get_collection
+from utils.retriever import add_documents_to_db, query_db, reset_db, get_collection, delete_document_from_db
 from utils.validator import validate_query, evaluate_faithfulness, evaluate_answer_relevancy
 
 # Setup page config first (removes standard padding to match full-width dashboard)
@@ -366,6 +366,36 @@ def get_indexed_documents() -> List[Dict[str, Any]]:
         return []
 
 
+def log_evaluation(query: str, answer: str, faithfulness: float, relevancy: float) -> None:
+    """Appends evaluations of generated answers to a persistent JSON logs history file."""
+    import datetime
+    import json
+    
+    log_path = "evaluation_history.json"
+    log_entry = {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "query": query,
+        "answer": answer,
+        "faithfulness": faithfulness,
+        "relevancy": relevancy
+    }
+    
+    data = []
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            data = []
+            
+    data.append(log_entry)
+    try:
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to write evaluation logs: {e}")
+
+
 def sanitize_text(text: str) -> str:
     """Replaces problematic unicode characters (non-breaking hyphens, dashes, etc.) with ASCII equivalents."""
     replacements = {
@@ -588,6 +618,29 @@ def main() -> None:
         
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # Selective Document Deletion Action
+        if document_list:
+            st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
+            st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>🗑️ Delete Document</h3>", unsafe_allow_html=True)
+            doc_to_delete = st.selectbox(
+                "Select document to delete",
+                options=[doc["source"] for doc in document_list],
+                key="delete_doc_selector",
+                label_visibility="collapsed"
+            )
+            if st.button("🗑️ Delete Selected Document", use_container_width=True):
+                try:
+                    delete_document_from_db(doc_to_delete)
+                    st.success(f"Deleted '{doc_to_delete}' successfully!")
+                    
+                    # Update session state db_initialized if empty
+                    remaining_docs = get_indexed_documents()
+                    st.session_state.db_initialized = (len(remaining_docs) > 0)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to delete document: {e}")
+            st.markdown("</div>", unsafe_allow_html=True)
+
         # Database Management / Reset
         st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
         st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>🧹 Portal Actions</h3>", unsafe_allow_html=True)
@@ -608,87 +661,25 @@ def main() -> None:
                 st.session_state.logged_in = False
                 st.rerun()
         
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # RIGHT PANEL: CHAT CONSOLE (styled via CSS selector, no HTML wrapper needed)
+      # RIGHT PANEL: WORKSPACE (styled via CSS selector, no HTML wrapper needed)
     with col_workspace_right:
-        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>💬 Interactive Chat Console</h3>", unsafe_allow_html=True)
+        tab_chat, tab_analytics = st.tabs(["💬 Chat Workspace", "📊 Analytics Dashboard"])
+        
+        with tab_chat:
+            st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>💬 Interactive Chat Console</h3>", unsafe_allow_html=True)
 
-        if not st.session_state.db_initialized:
-            st.info("👋 Welcome to the Synthara Portal! To start asking questions, please upload corporate documents in the left panel and click **Process & Extract Text**.")
-        else:
-            # Display Chat History
-            for msg in st.session_state.chat_history:
-                with st.chat_message(msg["role"]):
-                    st.write(msg["content"])
-                    
-                    if msg["role"] == "assistant" and "citations" in msg:
-                        # Citations
-                        with st.expander("📖 View Retrieved Citations"):
-                            for idx, chunk in enumerate(msg["citations"]):
-                                source = chunk["metadata"].get("source", "Unknown Document")
-                                page = chunk["metadata"].get("page", "?")
-                                score = chunk.get("similarity", 0.0)
-                                st.markdown(
-                                    f"<div class='citation-card'>"
-                                    f"<strong>Source {idx+1}:</strong> {source} (Page {page})<br/>"
-                                    f"<strong>Similarity Match:</strong> {score * 100:.1f}%<br/>"
-                                    f"<p style='margin-top: 5px; color:#94A3B8; font-style:italic;'>\"{chunk['text'][:300]}...\"</p>"
-                                    f"</div>",
-                                    unsafe_allow_html=True
-                                )
-                        # Evaluations
-                        if "evaluations" in msg:
-                            with st.expander("📊 Evaluation Metrics (LLM judge)"):
-                                faith = msg["evaluations"].get("faithfulness", {})
-                                relev = msg["evaluations"].get("relevancy", {})
-                                f_score = faith.get("score", 0.0)
-                                r_score = relev.get("score", 0.0)
-                                
-                                f_badge = "badge-green" if f_score >= 0.8 else ("badge-yellow" if f_score >= 0.5 else "badge-red")
-                                r_badge = "badge-green" if r_score >= 0.8 else ("badge-yellow" if r_score >= 0.5 else "badge-red")
-                                
-                                st.markdown(
-                                    f"#### Groundedness Score<br/>"
-                                    f"<span class='metric-badge {f_badge}'>{f_score:.2f} / 1.00</span><br/>"
-                                    f"<em>Reasoning:</em> {faith.get('reasoning', 'No reasoning supplied.')}",
-                                    unsafe_allow_html=True
-                                )
-                                st.divider()
-                                st.markdown(
-                                    f"#### Answer Relevancy Score<br/>"
-                                    f"<span class='metric-badge {r_badge}'>{r_score:.2f} / 1.00</span><br/>"
-                                    f"<em>Reasoning:</em> {relev.get('reasoning', 'No reasoning supplied.')}",
-                                    unsafe_allow_html=True
-                                )
-
-            # Chat Input Box
-            query = st.chat_input("Ask a policy question...")
-
-            if query:
-                if not is_api_key_valid:
-                    st.error("Please configure a valid API Key to ask questions.")
-                    return
-
-                try:
-                    cleaned_query = validate_query(query)
-                except ValueError as e:
-                    st.error(str(e))
-                    return
-
-                with st.chat_message("user"):
-                    st.write(cleaned_query)
-                st.session_state.chat_history.append({"role": "user", "content": cleaned_query})
-
-                with st.chat_message("assistant"):
-                    with st.spinner("Retrieving facts and generating response..."):
-                        try:
-                            res = run_pipeline(cleaned_query)
-                            st.write(res["answer"])
-
-                            # Citations Accordion
+            if not st.session_state.db_initialized:
+                st.info("👋 Welcome to the Synthara Portal! To start asking questions, please upload corporate documents in the left panel and click **Process & Extract Text**.")
+            else:
+                # Display Chat History
+                for msg in st.session_state.chat_history:
+                    with st.chat_message(msg["role"]):
+                        st.write(msg["content"])
+                        
+                        if msg["role"] == "assistant" and "citations" in msg:
+                            # Citations
                             with st.expander("📖 View Retrieved Citations"):
-                                for idx, chunk in enumerate(res["citations"]):
+                                for idx, chunk in enumerate(msg["citations"]):
                                     source = chunk["metadata"].get("source", "Unknown Document")
                                     page = chunk["metadata"].get("page", "?")
                                     score = chunk.get("similarity", 0.0)
@@ -700,52 +691,158 @@ def main() -> None:
                                         f"</div>",
                                         unsafe_allow_html=True
                                     )
+                            # Evaluations
+                            if "evaluations" in msg:
+                                with st.expander("📊 Evaluation Metrics (LLM judge)"):
+                                    faith = msg["evaluations"].get("faithfulness", {})
+                                    relev = msg["evaluations"].get("relevancy", {})
+                                    f_score = faith.get("score", 0.0)
+                                    r_score = relev.get("score", 0.0)
+                                    
+                                    f_badge = "badge-green" if f_score >= 0.8 else ("badge-yellow" if f_score >= 0.5 else "badge-red")
+                                    r_badge = "badge-green" if r_score >= 0.8 else ("badge-yellow" if r_score >= 0.5 else "badge-red")
+                                    
+                                    st.markdown(
+                                        f"#### Groundedness Score<br/>"
+                                        f"<span class='metric-badge {f_badge}'>{f_score:.2f} / 1.00</span><br/>"
+                                        f"<em>Reasoning:</em> {faith.get('reasoning', 'No reasoning supplied.')}",
+                                        unsafe_allow_html=True
+                                    )
+                                    st.divider()
+                                    st.markdown(
+                                        f"#### Answer Relevancy Score<br/>"
+                                        f"<span class='metric-badge {r_badge}'>{r_score:.2f} / 1.00</span><br/>"
+                                        f"<em>Reasoning:</em> {relev.get('reasoning', 'No reasoning supplied.')}",
+                                        unsafe_allow_html=True
+                                    )
 
-                            # Evaluations Accordion
-                            with st.expander("📊 Evaluation Metrics (LLM judge)"):
-                                faith = res["evaluation"].get("faithfulness", {})
-                                relev = res["evaluation"].get("relevancy", {})
-                                f_score = faith.get("score", 0.0)
-                                r_score = relev.get("score", 0.0)
-                                
-                                f_badge = "badge-green" if f_score >= 0.8 else ("badge-yellow" if f_score >= 0.5 else "badge-red")
-                                r_badge = "badge-green" if r_score >= 0.8 else ("badge-yellow" if r_score >= 0.5 else "badge-red")
-                                
-                                st.markdown(
-                                    f"#### Groundedness Score<br/>"
-                                    f"<span class='metric-badge {f_badge}'>{f_score:.2f} / 1.00</span><br/>"
-                                    f"<em>Reasoning:</em> {faith.get('reasoning', 'No reasoning supplied.')}",
-                                    unsafe_allow_html=True
+                # Chat Input Box
+                query = st.chat_input("Ask a policy question...")
+
+                if query:
+                    if not is_api_key_valid:
+                        st.error("Please configure a valid API Key to ask questions.")
+                        return
+
+                    try:
+                        cleaned_query = validate_query(query)
+                    except ValueError as e:
+                        st.error(str(e))
+                        return
+
+                    with st.chat_message("user"):
+                        st.write(cleaned_query)
+                    st.session_state.chat_history.append({"role": "user", "content": cleaned_query})
+
+                    with st.chat_message("assistant"):
+                        with st.spinner("Retrieving facts and generating response..."):
+                            try:
+                                res = run_pipeline(cleaned_query)
+                                st.write(res["answer"])
+
+                                # Citations Accordion
+                                with st.expander("📖 View Retrieved Citations"):
+                                    for idx, chunk in enumerate(res["citations"]):
+                                        source = chunk["metadata"].get("source", "Unknown Document")
+                                        page = chunk["metadata"].get("page", "?")
+                                        score = chunk.get("similarity", 0.0)
+                                        st.markdown(
+                                            f"<div class='citation-card'>"
+                                            f"<strong>Source {idx+1}:</strong> {source} (Page {page})<br/>"
+                                            f"<strong>Similarity Match:</strong> {score * 100:.1f}%<br/>"
+                                            f"<p style='margin-top: 5px; color:#94A3B8; font-style:italic;'>\"{chunk['text'][:300]}...\"</p>"
+                                            f"</div>",
+                                            unsafe_allow_html=True
+                                        )
+
+                                # Evaluations Accordion
+                                with st.expander("📊 Evaluation Metrics (LLM judge)"):
+                                    faith = res["evaluation"].get("faithfulness", {})
+                                    relev = res["evaluation"].get("relevancy", {})
+                                    f_score = faith.get("score", 0.0)
+                                    r_score = relev.get("score", 0.0)
+                                    
+                                    f_badge = "badge-green" if f_score >= 0.8 else ("badge-yellow" if f_score >= 0.5 else "badge-red")
+                                    r_badge = "badge-green" if r_score >= 0.8 else ("badge-yellow" if r_score >= 0.5 else "badge-red")
+                                    
+                                    st.markdown(
+                                        f"#### Groundedness Score<br/>"
+                                        f"<span class='metric-badge {f_badge}'>{f_score:.2f} / 1.00</span><br/>"
+                                        f"<em>Reasoning:</em> {faith.get('reasoning', 'No reasoning supplied.')}",
+                                        unsafe_allow_html=True
+                                    )
+                                    st.divider()
+                                    st.markdown(
+                                        f"#### Answer Relevancy Score<br/>"
+                                        f"<span class='metric-badge {r_badge}'>{r_score:.2f} / 1.00</span><br/>"
+                                        f"<em>Reasoning:</em> {relev.get('reasoning', 'No reasoning supplied.')}",
+                                        unsafe_allow_html=True
+                                    )
+
+                                # Log the evaluation metrics
+                                log_evaluation(cleaned_query, res["answer"], f_score, r_score)
+
+                                # Download Results
+                                download_text = f"Question: {cleaned_query}\n\nAnswer: {res['answer']}\n\nMetrics:\n- Groundedness: {f_score}\n- Relevancy: {r_score}"
+                                st.download_button(
+                                    label="📥 Export Answer",
+                                    data=download_text,
+                                    file_name="policy_chat_response.txt",
+                                    mime="text/plain"
                                 )
-                                st.divider()
-                                st.markdown(
-                                    f"#### Answer Relevancy Score<br/>"
-                                    f"<span class='metric-badge {r_badge}'>{r_score:.2f} / 1.00</span><br/>"
-                                    f"<em>Reasoning:</em> {relev.get('reasoning', 'No reasoning supplied.')}",
-                                    unsafe_allow_html=True
-                                )
 
-                            # Download Results
-                            download_text = f"Question: {cleaned_query}\n\nAnswer: {res['answer']}\n\nMetrics:\n- Groundedness: {f_score}\n- Relevancy: {r_score}"
-                            st.download_button(
-                                label="📥 Export Answer",
-                                data=download_text,
-                                file_name="policy_chat_response.txt",
-                                mime="text/plain"
-                            )
+                                # Add to persistent chat state
+                                st.session_state.chat_history.append({
+                                    "role": "assistant",
+                                    "content": res["answer"],
+                                    "citations": res["citations"],
+                                    "evaluations": res["evaluation"]
+                                })
+                                st.rerun()
 
-                            # Add to persistent chat state
-                            st.session_state.chat_history.append({
-                                "role": "assistant",
-                                "content": res["answer"],
-                                "citations": res["citations"],
-                                "evaluations": res["evaluation"]
-                            })
-                            st.rerun()
+                            except Exception as e:
+                                logger.error(f"Error executing chat pipeline: {e}")
+                                st.error(f"Failed to query knowledge base: {e}")
 
-                        except Exception as e:
-                            logger.error(f"Error executing chat pipeline: {e}")
-                            st.error(f"Failed to query knowledge base: {e}")
+        with tab_analytics:
+            st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>📊 Groundedness & Quality Metrics</h3>", unsafe_allow_html=True)
+            
+            import json
+            log_path = "evaluation_history.json"
+            if os.path.exists(log_path):
+                try:
+                    with open(log_path, "r", encoding="utf-8") as f:
+                        logs = json.load(f)
+                except Exception:
+                    logs = []
+            else:
+                logs = []
+                
+            if logs:
+                total_queries = len(logs)
+                avg_faith = sum(item.get("faithfulness", 0.0) for item in logs) / total_queries
+                avg_relev = sum(item.get("relevancy", 0.0) for item in logs) / total_queries
+                
+                col_m1, col_m2, col_m3 = st.columns(3)
+                with col_m1:
+                    st.metric("Total Queries Resolved", total_queries)
+                with col_m2:
+                    st.metric("Average Groundedness", f"{avg_faith:.2f} / 1.00")
+                with col_m3:
+                    st.metric("Average Relevancy", f"{avg_relev:.2f} / 1.00")
+                    
+                st.markdown("<h4 style='margin-top:15px; font-family:\"Outfit\", sans-serif;'>📜 Query Log History</h4>", unsafe_allow_html=True)
+                for item in reversed(logs[-10:]):
+                    st.markdown(
+                        f"<div style='background:rgba(255,255,255,0.015); border:1px solid rgba(255,255,255,0.04); padding:12px; border-radius:8px; margin-bottom:8px; font-size:0.85em;'>"
+                        f"🕒 {item['timestamp'][:19].replace('T', ' ')}<br/>"
+                        f"❓ <strong>Q:</strong> {item['query']}<br/>"
+                        f"🛡️ <strong>Groundedness:</strong> {item['faithfulness']:.2f} | 🎯 <strong>Relevancy:</strong> {item['relevancy']:.2f}"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
+            else:
+                st.info("No query logs or evaluations recorded yet. Ask a policy question to log performance analytics!")
 
 
 if __name__ == "__main__":
