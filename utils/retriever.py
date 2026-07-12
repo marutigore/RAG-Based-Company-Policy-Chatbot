@@ -255,3 +255,21 @@ def reset_db() -> None:
                 f"due to Windows file locks: {e}. The database has been emptied and collection "
                 f"dropped; file cleanup will finalize on next app startup/exit."
             )
+
+
+def delete_document_from_db(source_name: str) -> None:
+    """
+    Surgically deletes all chunks associated with a specific source document.
+    """
+    if not source_name:
+        logger.warning("Empty source name passed to document deletion.")
+        return
+        
+    try:
+        collection = get_collection()
+        logger.info(f"Surgically deleting document chunks for source: {source_name}")
+        collection.delete(where={"source": source_name})
+        logger.info(f"Successfully deleted all database entries for {source_name}.")
+    except Exception as e:
+        logger.error(f"Error deleting document '{source_name}' from database: {e}")
+        raise RuntimeError(f"Database document deletion failed: {e}")
