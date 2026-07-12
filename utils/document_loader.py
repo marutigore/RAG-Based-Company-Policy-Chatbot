@@ -112,11 +112,26 @@ def load_pdf(file_path: str, custom_filename: Optional[str] = None) -> List[Dict
                         try:
                             logger.warning(f"Page {page_num + 1} is empty or image-only. Attempting Vision-based OCR fallback...")
                             import base64
+                            import io
+                            from PIL import Image
                             import openai
                             
                             # Render page to PNG bytes
                             pix = page.get_pixmap()
                             img_bytes = pix.tobytes("png")
+                            
+                            # Resize page image to optimize transmission latency (max 1024px)
+                            try:
+                                img = Image.open(io.BytesIO(img_bytes))
+                                if max(img.size) > 1024:
+                                    img.thumbnail((1024, 1024))
+                                    buffer = io.BytesIO()
+                                    img.save(buffer, format="PNG")
+                                    img_bytes = buffer.getvalue()
+                                    logger.info(f"Resized empty page {page_num + 1} from {img.size} to under 1024px for OCR speedup.")
+                            except Exception as scale_err:
+                                logger.warning(f"Failed to scale page image: {scale_err}")
+                                
                             base64_image = base64.b64encode(img_bytes).decode('utf-8')
                             
                             # Send image to the configured model
