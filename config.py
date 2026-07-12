@@ -56,6 +56,12 @@ except ValueError:
 VECTOR_DB_DIR = os.getenv("VECTOR_DB_DIR", "./chroma_db")
 LOG_LEVEL_STR = os.getenv("LOG_LEVEL", "INFO").upper()
 
+try:
+    MAX_PAGES_LIMIT = int(os.getenv("MAX_PAGES_LIMIT", "100"))
+except ValueError:
+    logger.warning("Invalid MAX_PAGES_LIMIT in env, defaulting to 100")
+    MAX_PAGES_LIMIT = 100
+
 # Map log level string to logging levels
 LOG_LEVEL = getattr(logging, LOG_LEVEL_STR, logging.INFO)
 
