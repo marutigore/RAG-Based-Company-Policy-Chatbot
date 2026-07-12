@@ -192,6 +192,7 @@ def query_db(query_text: str, k: int = 5) -> List[Dict[str, Any]]:
                 # Note: exact interpretation depends on HNSW config
                 distance = distances[idx]
                 similarity = 1.0 - (distance / 2.0)
+                similarity = max(0.0, min(1.0, similarity))
                 
                 retrieved_items.append({
                     "text": docs[idx],
