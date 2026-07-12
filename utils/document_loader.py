@@ -88,6 +88,12 @@ def load_pdf(file_path: str, custom_filename: Optional[str] = None) -> List[Dict
         # Open document with fitz
         doc = fitz.open(file_path)
         
+        import config
+        if len(doc) > config.MAX_PAGES_LIMIT:
+            logger.error(f"Document {filename} has {len(doc)} pages, which exceeds the maximum limit of {config.MAX_PAGES_LIMIT} pages.")
+            doc.close()
+            raise ValueError(f"Document exceeds maximum limit of {config.MAX_PAGES_LIMIT} pages (has {len(doc)} pages).")
+        
         # Iterate page by page
         for page_num in range(len(doc)):
             try:
