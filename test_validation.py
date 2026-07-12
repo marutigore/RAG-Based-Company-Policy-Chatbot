@@ -117,18 +117,23 @@ class TestValidationSuite(unittest.TestCase):
         finally:
             pass
 
+    @patch("utils.retriever.expand_query")
     @patch("utils.retriever.get_collection")
     @patch("openai.OpenAI")
     def test_05_end_to_end_pipeline(
         self,
         mock_openai: MagicMock,
-        mock_collection: MagicMock
+        mock_collection: MagicMock,
+        mock_expand_query: MagicMock
     ) -> None:
         """
         Test 5: Integration End-to-End Pipeline Verification.
         Checks mock components working sequentially from query to final answer output.
         """
         logger.info("Running Test 5: End-to-End Pipeline Verification...")
+        
+        # Mock query expansion to return original query for simplicity
+        mock_expand_query.return_value = ["What is the vacation policy?"]
         
         # 1. Mock DB collection query response
         mock_query_results = {
