@@ -5,6 +5,7 @@ Contains input verification routines and RAG evaluation methods (Faithfulness an
 
 import json
 import logging
+import time
 from typing import List, Dict, Any
 import openai
 import config
@@ -24,6 +25,33 @@ def _sanitize(text: str) -> str:
     for orig, repl in replacements.items():
         text = text.replace(orig, repl)
     return text
+
+
+def _call_llm_with_retry(client, messages, response_format=None, max_retries: int = 3, initial_delay: float = 1.0):
+    """
+    Executes a chat completion call with exponential backoff retry for transient errors.
+    """
+    delay = initial_delay
+    for attempt in range(max_retries):
+        try:
+            params = {
+                "model": config.LLM_MODEL,
+                "messages": messages,
+                "temperature": 0.0
+            }
+            if response_format:
+                params["response_format"] = response_format
+                
+            response = client.chat.completions.create(**params)
+            return response
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logger.error(f"LLM API call failed after {max_retries} attempts: {e}")
+                raise
+            
+            logger.warning(f"Transient LLM API error (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {delay}s...")
+            time.sleep(delay)
+            delay *= 2.0
 
 
 def validate_query(query: str) -> str:
@@ -117,23 +145,43 @@ def evaluate_faithfulness(contexts: List[str], answer: str) -> Dict[str, Any]:
         client = config.get_openai_client()
         logger.info("Calling OpenAI to evaluate answer Faithfulness...")
         
-        response = client.chat.completions.create(
-            model=config.LLM_MODEL,
+        response = _call_llm_with_retry(
+            client=client,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            response_format={"type": "json_object"},
-            temperature=0.0  # Greedy search for consistent evaluations
+            response_format={"type": "json_object"}
         )
 
         content = response.choices[0].message.content
         if not content:
             raise ValueError("Empty response received from LLM judge.")
             
-        data = json.loads(content)
-        # Ensure score is parsed as float
-        data["score"] = float(data.get("score", 0.0))
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as jde:
+            logger.warning(f"JSON decode failed: {jde}. Raw content: {content}")
+            import re
+            scores = re.findall(r'"score"\s*:\s*([0-9.]+)', content)
+            score = float(scores[0]) if scores else 0.0
+            data = {"score": score, "reasoning": "Fallback parsing due to JSON decode failure."}
+
+        # Validate schema keys and types
+        if not isinstance(data, dict):
+            data = {"score": 0.0, "reasoning": f"Invalid LLM response format: {type(data)}"}
+        
+        if "score" not in data:
+            data["score"] = 0.0
+        else:
+            try:
+                data["score"] = float(data["score"])
+            except (ValueError, TypeError):
+                data["score"] = 0.0
+                
+        if "reasoning" not in data:
+            data["reasoning"] = "No reasoning supplied by LLM."
+            
         logger.info(f"Faithfulness evaluated: Score = {data['score']}")
         return data
 
@@ -182,22 +230,43 @@ def evaluate_answer_relevancy(question: str, answer: str) -> Dict[str, Any]:
         client = config.get_openai_client()
         logger.info("Calling OpenAI to evaluate Answer Relevancy...")
         
-        response = client.chat.completions.create(
-            model=config.LLM_MODEL,
+        response = _call_llm_with_retry(
+            client=client,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            response_format={"type": "json_object"},
-            temperature=0.0
+            response_format={"type": "json_object"}
         )
 
         content = response.choices[0].message.content
         if not content:
             raise ValueError("Empty response received from LLM judge.")
             
-        data = json.loads(content)
-        data["score"] = float(data.get("score", 0.0))
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as jde:
+            logger.warning(f"JSON decode failed: {jde}. Raw content: {content}")
+            import re
+            scores = re.findall(r'"score"\s*:\s*([0-9.]+)', content)
+            score = float(scores[0]) if scores else 0.0
+            data = {"score": score, "reasoning": "Fallback parsing due to JSON decode failure."}
+
+        # Validate schema keys and types
+        if not isinstance(data, dict):
+            data = {"score": 0.0, "reasoning": f"Invalid LLM response format: {type(data)}"}
+            
+        if "score" not in data:
+            data["score"] = 0.0
+        else:
+            try:
+                data["score"] = float(data["score"])
+            except (ValueError, TypeError):
+                data["score"] = 0.0
+                
+        if "reasoning" not in data:
+            data["reasoning"] = "No reasoning supplied by LLM."
+
         logger.info(f"Relevancy evaluated: Score = {data['score']}")
         return data
 
