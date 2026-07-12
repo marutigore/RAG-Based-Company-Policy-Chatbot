@@ -146,7 +146,7 @@ def add_documents_to_db(chunks: List[Dict[str, Any]]) -> None:
         raise RuntimeError(f"Database insertion failed: {e}")
 
 
-def query_db(query_text: str, k: int = 5) -> List[Dict[str, Any]]:
+def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40) -> List[Dict[str, Any]]:
     """
     Queries the vector database for the top-k most similar chunks.
 
@@ -194,11 +194,12 @@ def query_db(query_text: str, k: int = 5) -> List[Dict[str, Any]]:
                 similarity = 1.0 - (distance / 2.0)
                 similarity = max(0.0, min(1.0, similarity))
                 
-                retrieved_items.append({
-                    "text": docs[idx],
-                    "metadata": metas[idx],
-                    "similarity": round(similarity, 4)
-                })
+                if similarity >= min_similarity:
+                    retrieved_items.append({
+                        "text": docs[idx],
+                        "metadata": metas[idx],
+                        "similarity": round(similarity, 4)
+                    })
                 
         logger.info(f"Retrieved {len(retrieved_items)} results from database.")
         return retrieved_items
