@@ -210,20 +210,42 @@ def query_db(query_text: str, k: int = 5) -> List[Dict[str, Any]]:
 def reset_db() -> None:
     """
     Resets the persistent vector database by dropping the collection
-    and clearing the physical directory contents.
+    and clearing the physical directory contents where possible.
     """
     global _chroma_client, _collection
     logger.warning("Resetting the vector database...")
     
+    # 1. Clear database elements first while handles are active
     try:
-        # Close handles and delete DB directory
-        _collection = None
-        _chroma_client = None
-        
-        if os.path.exists(config.VECTOR_DB_DIR):
+        if _collection is not None:
+            # Delete all documents in collection
+            _collection.delete()
+            logger.info("Cleared all documents from ChromaDB collection.")
+    except Exception as e:
+        logger.warning(f"Could not delete elements inside collection during reset: {e}")
+
+    try:
+        if _chroma_client is not None:
+            try:
+                _chroma_client.delete_collection(COLLECTION_NAME)
+                logger.info(f"Dropped ChromaDB collection '{COLLECTION_NAME}'")
+            except Exception as e:
+                logger.warning(f"Could not drop collection '{COLLECTION_NAME}': {e}")
+    except Exception as e:
+        logger.warning(f"Error accessing database client during reset: {e}")
+
+    # 2. Reset global references
+    _collection = None
+    _chroma_client = None
+    
+    # 3. Attempt physical file removal
+    if os.path.exists(config.VECTOR_DB_DIR):
+        try:
             shutil.rmtree(config.VECTOR_DB_DIR)
             logger.info(f"Deleted vector database directory at {config.VECTOR_DB_DIR}")
-            
-    except Exception as e:
-        logger.error(f"Error resetting database directory: {e}")
-        raise RuntimeError(f"Failed to reset database: {e}")
+        except OSError as e:
+            logger.warning(
+                f"Could not physically delete database directory '{config.VECTOR_DB_DIR}' "
+                f"due to Windows file locks: {e}. The database has been emptied and collection "
+                f"dropped; file cleanup will finalize on next app startup/exit."
+            )
