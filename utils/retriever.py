@@ -150,21 +150,64 @@ def add_documents_to_db(chunks: List[Dict[str, Any]]) -> None:
         raise RuntimeError(f"Database insertion failed: {e}")
 
 
+def expand_query(query: str) -> List[str]:
+    """
+    Leverages the configured LLM to expand a user query into 3 alternative formulations,
+    improving keyword coverage and semantic search recall.
+    """
+    import config
+    # Ensure keys are valid
+    if not config.check_keys():
+        return [query]
+        
+    client = config.get_openai_client()
+    system_prompt = (
+        "You are an expert search assistant. Your job is to output exactly 3 alternative search queries "
+        "or keyword formulations of the user's input to search a company policy database.\n"
+        "Output ONLY the query variations, one per line. Do not number them, do not use bullet points, "
+        "and do not write any greetings or explanations."
+    )
+    
+    try:
+        logger.info(f"Expanding search query variations using LLM ({config.LLM_MODEL})...")
+        response = client.chat.completions.create(
+            model=config.LLM_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Query: {query}"}
+            ],
+            temperature=0.3,
+            max_tokens=150
+        )
+        content = response.choices[0].message.content or ""
+        lines = [line.strip() for line in content.split("\n") if line.strip()]
+        
+        # Clean lines from standard output prefixes (like "1. ", "- ", etc.)
+        cleaned_variations = []
+        for line in lines:
+            cleaned = line.lstrip("0123456789.-*• ")
+            if cleaned:
+                cleaned_variations.append(cleaned)
+                
+        # Maintain uniqueness
+        unique_variations = list(dict.fromkeys(cleaned_variations))[:3]
+        
+        # Ensure the original query is included
+        if query not in unique_variations:
+            unique_variations.append(query)
+            
+        logger.info(f"Generated query expansions: {unique_variations}")
+        return unique_variations
+        
+    except Exception as e:
+        logger.warning(f"Failed to generate query expansions: {e}. Falling back to original query.")
+        return [query]
+
+
 def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40) -> List[Dict[str, Any]]:
     """
     Queries the vector database for the top-k most similar chunks.
-
-    Args:
-        query_text (str): Natural language user question.
-        k (int): Number of top results to retrieve.
-
-    Returns:
-        List[Dict[str, Any]]: List of matching results, each with 'text' and 'metadata'.
-
-    Example:
-        >>> matches = query_db("What is the sick leave policy?", k=3)
-        >>> print(matches[0]['metadata']['source'])
-        "hr_policy.pdf"
+    Uses LLM query expansion to query multiple variations and merges results.
     """
     if not query_text or not query_text.strip():
         logger.warning("Empty query submitted to retriever.")
@@ -173,39 +216,52 @@ def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40) -> List[
     collection = get_collection()
 
     try:
-        logger.info(f"Retrieving top {k} contexts for query: '{query_text}'")
-        # Generate embedding for search query
-        query_vector = get_embedding(query_text)
+        # Run query expansion
+        expanded_queries = expand_query(query_text)
         
-        # Query collection using pre-computed vector
-        results = collection.query(
-            query_embeddings=[query_vector],
-            n_results=k
-        )
+        all_retrieved_items: Dict[str, Dict[str, Any]] = {}
         
-        retrieved_items: List[Dict[str, Any]] = []
-        
-        # Parse output from ChromaDB structure
-        if results and "documents" in results and results["documents"]:
-            docs = results["documents"][0]
-            metas = results["metadatas"][0] if "metadatas" in results and results["metadatas"] else [{}] * len(docs)
-            distances = results["distances"][0] if "distances" in results and results["distances"] else [0.0] * len(docs)
+        for q in expanded_queries:
+            logger.info(f"Retrieving top {k} contexts for sub-query: '{q}'")
+            # Generate embedding for search query
+            query_vector = get_embedding(q)
             
-            for idx in range(len(docs)):
-                # Convert distance to a similarity score (cosine distance is 0 to 2, similarity = 1 - distance)
-                # Note: exact interpretation depends on HNSW config
-                distance = distances[idx]
-                similarity = 1.0 - (distance / 2.0)
-                similarity = max(0.0, min(1.0, similarity))
+            # Query collection using pre-computed vector
+            results = collection.query(
+                query_embeddings=[query_vector],
+                n_results=k
+            )
+            
+            # Parse output from ChromaDB structure
+            if results and "documents" in results and results["documents"]:
+                docs = results["documents"][0]
+                metas = results["metadatas"][0] if "metadatas" in results and results["metadatas"] else [{}] * len(docs)
+                distances = results["distances"][0] if "distances" in results and results["distances"] else [0.0] * len(docs)
                 
-                if similarity >= min_similarity:
-                    retrieved_items.append({
-                        "text": docs[idx],
-                        "metadata": metas[idx],
-                        "similarity": round(similarity, 4)
-                    })
-                
-        logger.info(f"Retrieved {len(retrieved_items)} results from database.")
+                for idx in range(len(docs)):
+                    distance = distances[idx]
+                    similarity = 1.0 - (distance / 2.0)
+                    similarity = max(0.0, min(1.0, similarity))
+                    
+                    if similarity >= min_similarity:
+                        doc_text = docs[idx]
+                        meta = metas[idx]
+                        source = meta.get("source", "unknown_source")
+                        page = meta.get("page", 0)
+                        
+                        # Formulate deduplication key
+                        dedup_key = f"{source}_p{page}_{doc_text[:100]}"
+                        
+                        if dedup_key not in all_retrieved_items or similarity > all_retrieved_items[dedup_key]["similarity"]:
+                            all_retrieved_items[dedup_key] = {
+                                "text": doc_text,
+                                "metadata": meta,
+                                "similarity": round(similarity, 4)
+                            }
+                            
+        # Sort merged contexts by similarity descending, and take the top k
+        retrieved_items = sorted(all_retrieved_items.values(), key=lambda x: x["similarity"], reverse=True)[:k]
+        logger.info(f"Retrieved {len(retrieved_items)} unique combined results from database after query expansion.")
         return retrieved_items
 
     except Exception as e:
