@@ -112,14 +112,18 @@ def add_documents_to_db(chunks: List[Dict[str, Any]]) -> None:
         metadatas: List[Dict[str, Any]] = []
         documents: List[str] = []
 
+        import hashlib
+
         # Build payload arrays for ChromaDB
         for idx, chunk in enumerate(chunks):
-            # Formulate a unique ID based on filename, page, and chunk index
+            # Formulate a unique ID based on filename, page, chunk index, and content hash
             source = chunk["metadata"].get("source", "unknown_source")
             page = chunk["metadata"].get("page", 0)
             chunk_idx = chunk["metadata"].get("chunk_idx", 0)
             
-            unique_id = f"{source}_p{page}_c{chunk_idx}_{idx}"
+            chunk_text = chunk["text"]
+            text_hash = hashlib.md5(chunk_text.encode("utf-8")).hexdigest()
+            unique_id = f"{source}_p{page}_c{chunk_idx}_{text_hash}"
             ids.append(unique_id)
             
             # Format metadata: ChromaDB requires primitive types (str, int, float, bool)
@@ -129,7 +133,7 @@ def add_documents_to_db(chunks: List[Dict[str, Any]]) -> None:
                 "token_count": int(chunk["metadata"].get("token_count", 0))
             }
             metadatas.append(meta)
-            documents.append(chunk["text"])
+            documents.append(chunk_text)
 
         logger.info(f"Writing {len(ids)} embedded documents to ChromaDB collection...")
         # Insert elements into the collection
