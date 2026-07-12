@@ -24,9 +24,11 @@ def _get_model() -> SentenceTransformer:
     """
     global _model
     if _model is None:
-        logger.info("Initializing SentenceTransformer('all-MiniLM-L6-v2') locally...")
-        # Load the lightweight MiniLM model (runs in milliseconds on CPU)
-        _model = SentenceTransformer('all-MiniLM-L6-v2')
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Initializing SentenceTransformer('all-MiniLM-L6-v2') locally on device: {device}...")
+        # Load the lightweight MiniLM model (runs in milliseconds on CPU or CUDA)
+        _model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
     return _model
 
 
