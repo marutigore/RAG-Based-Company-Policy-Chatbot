@@ -30,7 +30,7 @@ if GEMINI_KEY and "your_actual_key" not in GEMINI_KEY.lower() and GEMINI_KEY != 
     logger.info("Configuring Gemini API (OpenAI-compatible) endpoint for LLM completion.")
     OPENAI_API_KEY = GEMINI_KEY
     OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-    LLM_MODEL = "gemini-1.5-flash"
+    LLM_MODEL = os.getenv("LLM_MODEL", "gemini-1.5-flash")
 else:
     logger.info("Configuring standard OpenAI API endpoint for LLM completion.")
     OPENAI_API_KEY = raw_openai_key.replace('\u2011', '-').replace('\u2013', '-').replace('\u2014', '-').strip()
