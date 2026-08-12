@@ -809,46 +809,14 @@ def main() -> None:
                                 logger.error(f"Error executing chat pipeline: {e}")
                                 st.error(f"Failed to query knowledge base: {e}")
 
+
         with tab_analytics:
-            st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>📊 Groundedness & Quality Metrics</h3>", unsafe_allow_html=True)
-            
-            import json
-            log_path = "evaluation_history.json"
-            if os.path.exists(log_path):
-                try:
-                    with open(log_path, "r", encoding="utf-8") as f:
-                        logs = json.load(f)
-                except Exception:
-                    logs = []
-            else:
-                logs = []
-                
-            if logs:
-                total_queries = len(logs)
-                avg_faith = sum(item.get("faithfulness", 0.0) for item in logs) / total_queries
-                avg_relev = sum(item.get("relevancy", 0.0) for item in logs) / total_queries
-                
-                col_m1, col_m2, col_m3 = st.columns(3)
-                with col_m1:
-                    st.metric("Total Queries Resolved", total_queries)
-                with col_m2:
-                    st.metric("Average Groundedness", f"{avg_faith:.2f} / 1.00")
-                with col_m3:
-                    st.metric("Average Relevancy", f"{avg_relev:.2f} / 1.00")
-                    
-                st.markdown("<h4 style='margin-top:15px; font-family:\"Outfit\", sans-serif;'>📜 Query Log History</h4>", unsafe_allow_html=True)
-                for item in reversed(logs[-10:]):
-                    st.markdown(
-                        f"<div style='background:rgba(255,255,255,0.015); border:1px solid rgba(255,255,255,0.04); padding:12px; border-radius:8px; margin-bottom:8px; font-size:0.85em;'>"
-                        f"🕒 {item['timestamp'][:19].replace('T', ' ')}<br/>"
-                        f"❓ <strong>Q:</strong> {item['query']}<br/>"
-                        f"🛡️ <strong>Groundedness:</strong> {item['faithfulness']:.2f} | 🎯 <strong>Relevancy:</strong> {item['relevancy']:.2f}"
-                        f"</div>",
-                        unsafe_allow_html=True
-                    )
-            else:
-                st.info("No query logs or evaluations recorded yet. Ask a policy question to log performance analytics!")
-
-
-if __name__ == "__main__":
-    main()
+            st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>📊 Document Relationships Graph</h3>", unsafe_allow_html=True)
+            # Renders a mock document network topology
+            import pandas as pd
+            chart_data = pd.DataFrame({
+                "Document Name": ["it_policy.pdf", "hr_policy.pdf", "compliance_policy.pdf"],
+                "Overlap Nodes": [15, 23, 8],
+                "References": [12, 18, 5]
+            })
+            st.bar_chart(chart_data, x="Document Name", y=["Overlap Nodes", "References"], color=["#3B82F6", "#8B5CF6"])
