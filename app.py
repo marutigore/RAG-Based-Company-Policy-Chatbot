@@ -716,6 +716,11 @@ def main() -> None:
                                         unsafe_allow_html=True
                                     )
 
+                # Speech-to-Text Input Simulator
+                st.markdown("<div style='display:flex; align-items:center; gap:10px; margin-bottom:10px;'>"
+                            "<button style='background-color:#1F2937; color:#E5E7EB; border:1px solid #4B5563; padding:6px 12px; border-radius:8px; cursor:pointer;'>🎙️ Voice Search</button>"
+                            "<span style='color:var(--text-muted); font-size:0.85em;'>Click to speak policy question</span>"
+                            "</div>", unsafe_allow_html=True)
                 # Chat Input Box
                 query = st.chat_input("Ask a policy question...")
 
