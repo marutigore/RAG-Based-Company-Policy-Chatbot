@@ -684,10 +684,10 @@ def main() -> None:
                                     page = chunk["metadata"].get("page", "?")
                                     score = chunk.get("similarity", 0.0)
                                     st.markdown(
-                                        f"<div class='citation-card'>"
+                                        f"<div class='citation-card' style='border-left-color:#10B981;'>"
                                         f"<strong>Source {idx+1}:</strong> {source} (Page {page})<br/>"
                                         f"<strong>Similarity Match:</strong> {score * 100:.1f}%<br/>"
-                                        f"<p style='margin-top: 5px; color:#94A3B8; font-style:italic;'>\"{chunk['text'][:300]}...\"</p>"
+                                        f"<p style='margin-top: 5px; color:#E2E8F0; background-color:rgba(16,185,129,0.06); padding:8px; border-radius:5px; font-style:italic;'>\"[Interactive Highlight] ... {chunk['text'][:300]}...\"</p>"
                                         f"</div>",
                                         unsafe_allow_html=True
                                     )
