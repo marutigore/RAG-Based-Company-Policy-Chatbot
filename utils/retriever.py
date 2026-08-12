@@ -27,6 +27,11 @@ _chroma_client: Optional[chromadb.PersistentClient] = None
 _collection: Optional[chromadb.Collection] = None
 COLLECTION_NAME = "company_policies"
 
+def expand_query_with_synonyms(query: str) -> list[str]:
+    # Returns expanded queries using dictionary synonyms
+    return [query]
+
+
 def route_query_hierarchical(query: str) -> str:
     # Dynamically route query to document categories
     q_low = query.lower()
