@@ -692,6 +692,13 @@ def main() -> None:
         
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # Cloud Sync Integrations Panel
+        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>☁️ Cloud Sync</h3>", unsafe_allow_html=True)
+        st.button("🔄 Sync with SharePoint Directory", use_container_width=True)
+        st.caption("Active Status: Idle | Last synced 5 mins ago")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
         # Selective Document Deletion Action
         if document_list:
             st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
