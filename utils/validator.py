@@ -117,6 +117,16 @@ def translate_query(query: str, target_lang: str = "en") -> str:
     return query
 
 
+
+def validate_dlp(prompt: str, response: str) -> bool:
+    # Data Loss Prevention output check - blocks sensitive credentials leaks
+    res_low = response.lower()
+    if "api_key" in res_low or "password" in res_low or "secret" in res_low:
+        logger.warning("DLP block triggered: LLM response leaks sensitive terms.")
+        return False
+    return True
+
+
 def evaluate_faithfulness(contexts: List[str], answer: str) -> Dict[str, Any]:
     """
     Evaluates whether the generated answer is fully grounded in the retrieved contexts (no hallucination).
