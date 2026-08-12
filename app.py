@@ -467,7 +467,7 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
         return f"An unexpected error occurred: {str(e)}"
 
 
-def run_pipeline(question: str) -> Dict[str, Any]:
+def run_pipeline(question: str, clearance: str = "Employee") -> Dict[str, Any]:
     """Runs the full RAG query pipeline: search DB, prompt LLM, evaluate response."""
     retrieved_chunks = query_db(question, k=5)
     
@@ -609,6 +609,12 @@ def main() -> None:
 
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # Role-Based Access Control (RBAC) Panel
+        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>🛡️ Clearance Controls</h3>", unsafe_allow_html=True)
+        clearance_level = st.selectbox("Assign User Clearance", options=["Employee", "Manager", "Compliance Officer"])
+        st.markdown("</div>", unsafe_allow_html=True)
+        
         # Document Registry List (Metadata Parser)
         st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
         st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>📖 Document Registry</h3>", unsafe_allow_html=True)
@@ -751,7 +757,7 @@ def main() -> None:
                     with st.chat_message("assistant"):
                         with st.spinner("Retrieving facts and generating response..."):
                             try:
-                                res = run_pipeline(cleaned_query)
+                                res = run_pipeline(cleaned_query, clearance=clearance_level)
                                 st.write(res["answer"])
 
                                 # Citations Accordion

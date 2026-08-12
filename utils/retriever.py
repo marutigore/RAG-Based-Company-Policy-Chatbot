@@ -241,7 +241,7 @@ def tokenize_text(text: str) -> list[str]:
     return [w for w in re.findall(r'\w+', text.lower()) if w]
 
 
-def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40) -> List[Dict[str, Any]]:
+def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40, clearance: str = "Employee") -> List[Dict[str, Any]]:
     if not query_text or not query_text.strip():
         logger.warning("Empty query submitted to retriever.")
         return []
