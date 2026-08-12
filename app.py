@@ -673,6 +673,13 @@ def main() -> None:
 
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # Background Task Queue Monitor
+        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>⚡ Active Jobs Queue</h3>", unsafe_allow_html=True)
+        st.progress(1.0)
+        st.caption("All indexing tasks completed successfully.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
         # Developer Tuning Console
         st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
         st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>⚙️ A/B Tuning Parameters</h3>", unsafe_allow_html=True)

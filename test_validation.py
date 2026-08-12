@@ -170,6 +170,7 @@ class TestValidationSuite(unittest.TestCase):
         client_mock = mock_openai.return_value
         client_mock.embeddings.create.return_value = mock_embed_res
         client_mock.chat.completions.create.side_effect = [
+            mock_llm_res,      # Called by reformulate_query
             mock_llm_res,      # Called by app.py to get answer
             mock_faith_res,    # Called by validator.py for faithfulness
             mock_rel_res       # Called by validator.py for relevancy
