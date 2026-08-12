@@ -157,7 +157,7 @@ CUSTOM_CSS = """
     /* Top Grid Dashboard Metrics */
     .stat-container {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(5, 1fr);
         gap: 15px;
         margin-bottom: 25px;
         animation: fadeInUp 0.8s ease;
@@ -596,8 +596,9 @@ def main() -> None:
         f"<div class='stat-card'><div class='stat-lbl'>📄 Document Registry</div><div class='stat-val'>{len(document_list)}</div></div>"
         f"<div class='stat-card'><div class='stat-lbl'>📦 Knowledge Nodes</div><div class='stat-val'>{total_chunks}</div></div>"
         f"<div class='stat-card'><div class='stat-lbl'>🛡️ Safety Check</div><div class='stat-val' style='color:#10B981;'>Grounded</div></div>"
-        f"<div class='stat-card'><div class='stat-lbl'>⚙️ Active Model</div><div class='stat-val' style='font-size:1.55em; line-height:2.0; color:#8B5CF6; font-family:\"Space Grotesk\", sans-serif;'>{config.LLM_MODEL}</div></div>"
-        f"</div>",
+        f"<div class='stat-card'><div class='stat-lbl'>💸 Workspace Cost</div><div class='stat-val'>${st.session_state.total_cost:.5f}</div></div>"
+        f"<div class='stat-card'><div class='stat-lbl'>⚙️ Active Model</div><div class='stat-val' style='font-size:1.35em; line-height:2.0; color:#8B5CF6; font-family:\"Space Grotesk\", sans-serif;'>{config.LLM_MODEL}</div></div>"
+        f"</div>","
         unsafe_allow_html=True
     )
 
