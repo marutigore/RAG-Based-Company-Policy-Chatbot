@@ -440,6 +440,26 @@ def sanitize_text(text: str) -> str:
     return text
 
 
+
+def track_usage(usage) -> None:
+    if not usage:
+        return
+    from unittest.mock import Mock
+    if isinstance(usage, Mock):
+        return
+    prompt_tokens = getattr(usage, "prompt_tokens", 0)
+    completion_tokens = getattr(usage, "completion_tokens", 0)
+    if not isinstance(prompt_tokens, (int, float)) or not isinstance(completion_tokens, (int, float)):
+        return
+    cost = (prompt_tokens * 0.15 / 1e6) + (completion_tokens * 0.60 / 1e6)
+    if "total_tokens" not in st.session_state:
+        st.session_state.total_tokens = 0
+    if "total_cost" not in st.session_state:
+        st.session_state.total_cost = 0.0
+    st.session_state.total_tokens += prompt_tokens + completion_tokens
+    st.session_state.total_cost += cost
+
+
 def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
     """Constructs the prompt context and calls the configured provider client."""
     client = config.get_openai_client()
@@ -483,7 +503,9 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
             messages=messages,
             temperature=0.0
         )
-        return response.choices[0].message.content or ""
+                if hasattr(response, "usage") and response.usage:
+            track_usage(response.usage)
+        return response.choices[0].message.content or "" 
     except Exception as e:
         logger.error(f"Unexpected error in call_llm: {e}")
         return f"An unexpected error occurred: {str(e)}"

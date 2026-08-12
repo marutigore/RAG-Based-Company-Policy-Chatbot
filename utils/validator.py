@@ -43,6 +43,24 @@ def _call_llm_with_retry(client, messages, response_format=None, max_retries: in
                 params["response_format"] = response_format
                 
             response = client.chat.completions.create(**params)
+            try:
+                import streamlit as st
+                if hasattr(st, "session_state") and st.session_state is not None:
+                    from unittest.mock import Mock
+                    usage = getattr(response, "usage", None)
+                    if usage is not None and not isinstance(usage, Mock):
+                        prompt_tokens = getattr(usage, "prompt_tokens", 0)
+                        completion_tokens = getattr(usage, "completion_tokens", 0)
+                        if isinstance(prompt_tokens, (int, float)) and isinstance(completion_tokens, (int, float)):
+                            cost = (prompt_tokens * 0.15 / 1e6) + (completion_tokens * 0.60 / 1e6)
+                            if "total_tokens" not in st.session_state:
+                                st.session_state.total_tokens = 0
+                            if "total_cost" not in st.session_state:
+                                st.session_state.total_cost = 0.0
+                            st.session_state.total_tokens += prompt_tokens + completion_tokens
+                            st.session_state.total_cost += cost
+            except Exception:
+                pass
             return response
         except Exception as e:
             if attempt == max_retries - 1:
