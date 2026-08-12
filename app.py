@@ -828,6 +828,13 @@ def main() -> None:
                                         unsafe_allow_html=True
                                     )
 
+                                                                # Thumbs feedback buttons
+                                col_f1, col_f2 = st.columns([0.1, 0.9])
+                                with col_f1:
+                                    st.button("👍", key=f"thumbs_up_{len(st.session_state.chat_history)}")
+                                with col_f2:
+                                    st.button("👎", key=f"thumbs_dn_{len(st.session_state.chat_history)}")
+
                                 # Log the evaluation metrics
                                 log_evaluation(cleaned_query, res["answer"], f_score, r_score)
 
