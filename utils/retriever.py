@@ -204,11 +204,14 @@ def expand_query(query: str) -> List[str]:
         return [query]
 
 
+def tokenize_text(text: str) -> list[str]:
+    import re
+    if not text:
+        return []
+    return [w for w in re.findall(r'\w+', text.lower()) if w]
+
+
 def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40) -> List[Dict[str, Any]]:
-    """
-    Queries the vector database for the top-k most similar chunks.
-    Uses LLM query expansion to query multiple variations and merges results.
-    """
     if not query_text or not query_text.strip():
         logger.warning("Empty query submitted to retriever.")
         return []
@@ -216,23 +219,14 @@ def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40) -> List[
     collection = get_collection()
 
     try:
-        # Run query expansion
+        # 1. Dense Vector Search
         expanded_queries = expand_query(query_text)
-        
-        all_retrieved_items: Dict[str, Dict[str, Any]] = {}
+        vector_results_dict = {}
         
         for q in expanded_queries:
-            logger.info(f"Retrieving top {k} contexts for sub-query: '{q}'")
-            # Generate embedding for search query
             query_vector = get_embedding(q)
+            results = collection.query(query_embeddings=[query_vector], n_results=k)
             
-            # Query collection using pre-computed vector
-            results = collection.query(
-                query_embeddings=[query_vector],
-                n_results=k
-            )
-            
-            # Parse output from ChromaDB structure
             if results and "documents" in results and results["documents"]:
                 docs = results["documents"][0]
                 metas = results["metadatas"][0] if "metadatas" in results and results["metadatas"] else [{}] * len(docs)
@@ -249,23 +243,111 @@ def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40) -> List[
                         source = meta.get("source", "unknown_source")
                         page = meta.get("page", 0)
                         
-                        # Formulate deduplication key
                         dedup_key = f"{source}_p{page}_{doc_text[:100]}"
                         
-                        if dedup_key not in all_retrieved_items or similarity > all_retrieved_items[dedup_key]["similarity"]:
-                            all_retrieved_items[dedup_key] = {
+                        if dedup_key not in vector_results_dict or similarity > vector_results_dict[dedup_key]["similarity"]:
+                            vector_results_dict[dedup_key] = {
                                 "text": doc_text,
                                 "metadata": meta,
-                                "similarity": round(similarity, 4)
+                                "similarity": similarity
                             }
                             
-        # Sort merged contexts by similarity descending, and take the top k
-        retrieved_items = sorted(all_retrieved_items.values(), key=lambda x: x["similarity"], reverse=True)[:k]
-        logger.info(f"Retrieved {len(retrieved_items)} unique combined results from database after query expansion.")
+        sorted_vector_results = sorted(vector_results_dict.values(), key=lambda x: x["similarity"], reverse=True)
+
+        # 2. Sparse Keyword Search
+        bm25_results_dict = {}
+        try:
+            db_res = collection.get(include=["documents", "metadatas"])
+        except Exception as e:
+            logger.warning(f"Failed to fetch documents for BM25: {e}")
+            db_res = None
+            
+        if db_res and db_res.get("documents"):
+            all_docs = db_res["documents"]
+            all_metas = db_res["metadatas"]
+            
+            if all_docs and len(all_docs) > 0:
+                tokenized_corpus = [tokenize_text(doc) for doc in all_docs]
+                from rank_bm25 import BM25Okapi
+                bm25 = BM25Okapi(tokenized_corpus)
+                
+                tokenized_query = tokenize_text(query_text)
+                scores = bm25.get_scores(tokenized_query)
+                
+                doc_scores = list(enumerate(scores))
+                doc_scores = [(idx, score) for idx, score in doc_scores if score > 0.0]
+                sorted_doc_scores = sorted(doc_scores, key=lambda x: x[1], reverse=True)
+                
+                max_score = max(scores) if scores and max(scores) > 0.0 else 1.0
+                
+                for idx, score in sorted_doc_scores:
+                    doc_text = all_docs[idx]
+                    meta = all_metas[idx]
+                    source = meta.get("source", "unknown_source")
+                    page = meta.get("page", 0)
+                    
+                    dedup_key = f"{source}_p{page}_{doc_text[:100]}"
+                    normalized_score = score / max_score
+                    
+                    bm25_results_dict[dedup_key] = {
+                        "text": doc_text,
+                        "metadata": meta,
+                        "bm25_score": normalized_score
+                    }
+                
+        sorted_bm25_results = sorted(bm25_results_dict.values(), key=lambda x: x["bm25_score"], reverse=True)
+
+        # 3. RRF Fusion
+        vector_ranks = {
+            f"{item['metadata'].get('source', 'unknown_source')}_p{item['metadata'].get('page', 0)}_{item['text'][:100]}": idx + 1 
+            for idx, item in enumerate(sorted_vector_results)
+        }
+        bm25_ranks = {
+            f"{item['metadata'].get('source', 'unknown_source')}_p{item['metadata'].get('page', 0)}_{item['text'][:100]}": idx + 1 
+            for idx, item in enumerate(sorted_bm25_results)
+        }
+        
+        all_keys = set(vector_ranks.keys()).union(set(bm25_ranks.keys()))
+        fused_results = []
+        
+        for key in all_keys:
+            v_rank = vector_ranks.get(key, 9999)
+            b_rank = bm25_ranks.get(key, 9999)
+            rrf_score = (1.0 / (60.0 + v_rank)) + (1.0 / (60.0 + b_rank))
+            
+            original_item = None
+            v_sim = 0.0
+            b_score = 0.0
+            
+            if key in vector_results_dict:
+                original_item = vector_results_dict[key]
+                v_sim = original_item["similarity"]
+            if key in bm25_results_dict:
+                if original_item is None:
+                    original_item = bm25_results_dict[key]
+                b_score = bm25_results_dict[key]["bm25_score"]
+                
+            if original_item:
+                if v_sim > 0.0 and b_score > 0.0:
+                    combined_similarity = 0.7 * v_sim + 0.3 * b_score
+                elif v_sim > 0.0:
+                    combined_similarity = v_sim
+                else:
+                    combined_similarity = max(min_similarity, 0.40 + 0.10 * b_score)
+                    
+                fused_results.append({
+                    "text": original_item["text"],
+                    "metadata": original_item["metadata"],
+                    "similarity": round(combined_similarity, 4),
+                    "rrf_score": rrf_score
+                })
+                
+        retrieved_items = sorted(fused_results, key=lambda x: x["rrf_score"], reverse=True)[:k]
+        logger.info(f"Retrieved {len(retrieved_items)} unique combined results using hybrid search.")
         return retrieved_items
 
     except Exception as e:
-        logger.error(f"Error querying vector database: {e}")
+        logger.error(f"Error querying database with hybrid search: {e}")
         raise RuntimeError(f"Database retrieval failed: {e}")
 
 
