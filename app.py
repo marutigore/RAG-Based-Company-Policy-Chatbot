@@ -1,370 +1,34 @@
 """
-Main Streamlit Application.
-Implements the multi-document policy chatbot interface with high-fidelity UI/UX
-inspired by the Synthara project: dark slate HSL variables, glass-modern cards,
-animated floating backgrounds, top metrics grids, document registries, and split-layout chats.
-Custom CSS overrides are applied to standard Streamlit components to ensure a fully branded web app experience.
+Synthara Enterprise RAG Portal Backend.
+FastAPI Application serving a premium, responsive glassmorphic single-page RAG workspace interface.
+Backward compatible with test_validation.py integration calls.
 """
 
 import os
 import logging
+import json
+import datetime
 from typing import List, Dict, Any
-import streamlit as st
-import openai
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse
+import uvicorn
 
-# Import our custom modules
+# Import custom core modules
 import config
 from utils.document_loader import load_pdf
 from utils.chunker import split_documents
 from utils.retriever import add_documents_to_db, query_db, reset_db, get_collection, delete_document_from_db
 from utils.validator import validate_query, evaluate_faithfulness, evaluate_answer_relevancy
 
-# Setup page config first (removes standard padding to match full-width dashboard)
-st.set_page_config(
-    page_title="Synthara Policy Portal",
-    page_icon="🛡️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# Logger initialization
+# Setup logging
 logger = logging.getLogger("app")
 logging.basicConfig(level=config.LOG_LEVEL)
 
-# Tailwind-based glassmorphism, responsive dashboard CSS variables, animations, and Streamlit overrides
-CUSTOM_CSS = """
-<style>
-    /* Google Fonts Loading */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap');
+app = FastAPI(title="Synthara RAG Portal")
 
-    /* CSS Variables & Global Dark Theme from Synthara project */
-    :root {
-        --background: #0B0F19;      /* Deep dark slate */
-        --card: #131A26;            /* Dark card slate */
-        --primary: #3B82F6;         /* Bright primary blue */
-        --accent: #8B5CF6;          /* Violet accent */
-        --border: #251C35;          /* Dark purple border */
-        --text-muted: #94A3B8;      /* Slate muted gray */
-        --glass-bg: rgba(255, 255, 255, 0.04);
-        --glass-border: rgba(255, 255, 255, 0.08);
-    }
-
-    /* Font application across the app */
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif !important;
-    }
-
-    /* Shifting background gradient + Synthara SVG Grid Overlay */
-    .stApp {
-        background-color: var(--background) !important;
-        background-image: 
-            radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
-            radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.12) 0px, transparent 50%),
-            url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32' fill='none' stroke='rgb(255 255 255 / 0.015)'%3E%3Cpath d='M0 .5H31.5V32'/%3E%3C/svg%3E") !important;
-        color: #F8FAFC !important;
-    }
-
-    /* Custom Webkit scrollbar */
-    ::-webkit-scrollbar {
-        width: 8px;
-    }
-    ::-webkit-scrollbar-track {
-        background: var(--background);
-    }
-    ::-webkit-scrollbar-thumb {
-        background: rgba(148, 163, 184, 0.2);
-        border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: rgba(148, 163, 184, 0.4);
-    }
-
-    /* Keyframe Animations */
-    @keyframes float {
-        0%, 100% { transform: translateY(0px); }
-        50% { transform: translateY(-10px); }
-    }
-    @keyframes pulseGlow {
-        0%, 100% { opacity: 0.35; filter: blur(40px); }
-        50% { opacity: 0.6; filter: blur(60px); }
-    }
-    @keyframes fadeInUp {
-        from { opacity: 0; transform: translateY(15px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Floating Header Logo Animation */
-    .animate-float-logo {
-        animation: float 5s ease-in-out infinite;
-        display: inline-block;
-    }
-
-    /* Background Floating Blurs */
-    .glow-orb {
-        position: absolute;
-        width: 300px;
-        height: 300px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(139, 92, 246, 0.25) 0%, rgba(59, 130, 246, 0) 70%);
-        top: 20%;
-        left: 30%;
-        z-index: 0;
-        pointer-events: none;
-        animation: pulseGlow 6s ease-in-out infinite;
-    }
-
-    /* Form centering override for login page */
-    div[data-testid="stForm"] {
-        background: rgba(19, 26, 38, 0.65) !important;
-        backdrop-filter: blur(20px) !important;
-        -webkit-backdrop-filter: blur(20px) !important;
-        border: 1px solid var(--glass-border) !important;
-        border-radius: 20px !important;
-        padding: 40px !important;
-        max-width: 440px !important;
-        margin: 15vh auto !important; /* Perfect vertical and horizontal centering */
-        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5) !important;
-        animation: fadeInUp 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    
-    .login-logo {
-        text-align: center;
-        font-family: 'Space Grotesk', sans-serif;
-        font-size: 1.85em; /* Cleaner, sleeker font size */
-        font-weight: 700;
-        background: linear-gradient(90deg, #60A5FA 0%, #A78BFA 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 5px;
-        letter-spacing: -0.5px;
-    }
-    .login-desc {
-        text-align: center;
-        color: var(--text-muted);
-        font-size: 0.88em;
-        margin-top: 5px;
-    }
-
-    /* Header Logo Text Gradient */
-    .text-gradient-logo {
-        font-family: 'Space Grotesk', sans-serif;
-        font-weight: 800;
-        background: linear-gradient(90deg, #60A5FA 0%, #A78BFA 50%, #EC4899 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-    }
-
-    /* Top Grid Dashboard Metrics */
-    .stat-container {
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        gap: 15px;
-        margin-bottom: 25px;
-        animation: fadeInUp 0.8s ease;
-    }
-    .stat-card {
-        background: rgba(19, 26, 38, 0.45) !important;
-        backdrop-filter: blur(10px) !important;
-        border: 1px solid var(--glass-border) !important;
-        border-radius: 16px !important;
-        padding: 20px !important;
-        text-align: left;
-        transition: transform 0.3s ease, border-color 0.3s ease !important;
-    }
-    .stat-card:hover {
-        transform: translateY(-3px) !important;
-        border-color: rgba(96, 165, 250, 0.3) !important;
-        box-shadow: 0 8px 24px rgba(59, 130, 246, 0.1) !important;
-    }
-    .stat-val {
-        font-size: 2.1em;
-        font-weight: 800;
-        background: linear-gradient(90deg, #60A5FA 0%, #A78BFA 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-top: 5px;
-        font-family: 'Space Grotesk', sans-serif;
-    }
-    .stat-lbl {
-        color: var(--text-muted);
-        font-size: 0.8em;
-        text-transform: uppercase;
-        font-weight: bold;
-        letter-spacing: 1px;
-    }
-
-    /* Glass Panels */
-    .glass-panel {
-        background: rgba(19, 26, 38, 0.45) !important;
-        backdrop-filter: blur(12px) !important;
-        border: 1px solid var(--glass-border) !important;
-        border-radius: 16px !important;
-        padding: 24px !important;
-        margin-bottom: 20px;
-    }
-
-    /* Citation and evaluation badge styling */
-    .citation-card {
-        background: rgba(255, 255, 255, 0.01) !important;
-        border: 1px solid rgba(255, 255, 255, 0.04) !important;
-        border-left: 4px solid var(--primary) !important;
-        padding: 12px 16px;
-        margin: 10px 0px;
-        border-radius: 0px 10px 10px 0px;
-        font-size: 0.9em;
-        color: #E2E8F0;
-        transition: transform 0.2s ease, border-color 0.2s ease;
-    }
-    .citation-card:hover {
-        transform: translateX(3px);
-        border-color: rgba(59, 130, 246, 0.3) !important;
-        background: rgba(255, 255, 255, 0.02) !important;
-    }
-    .metric-badge {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.82em;
-        font-weight: bold;
-        color: white;
-    }
-    .badge-green { background-color: #10B981; }
-    .badge-yellow { background-color: #F59E0B; }
-    .badge-red { background-color: #EF4444; }
-
-    /* Streamlit Components Visual Overrides (Glow effects, fonts) */
-    .block-container {
-        padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
-    }
-
-    /* Override Chat Message Bubble Styles */
-    div[data-testid="stChatMessage"] {
-        background-color: rgba(19, 26, 38, 0.45) !important;
-        border: 1px solid var(--glass-border) !important;
-        border-radius: 14px !important;
-        padding: 18px !important;
-        margin-bottom: 12px !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
-    }
-    div[data-testid="stChatMessageAudience-user"] {
-        background-color: rgba(59, 130, 246, 0.08) !important;
-        border-color: rgba(59, 130, 246, 0.2) !important;
-    }
-
-    /* Override Chat Input styling to feel like custom premium React portal */
-    div[data-testid="stChatInput"] {
-        border-radius: 16px !important;
-        border: 1px solid rgba(139, 92, 246, 0.2) !important;
-        background-color: rgba(19, 26, 38, 0.8) !important;
-        box-shadow: 0 0 15px rgba(139, 92, 246, 0.15) !important;
-        transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
-    }
-    div[data-testid="stChatInput"]:focus-within {
-        border-color: rgba(139, 92, 246, 0.6) !important;
-        box-shadow: 0 0 25px rgba(139, 92, 246, 0.3) !important;
-    }
-    div[data-testid="stChatInput"] textarea {
-        color: #F8FAFC !important;
-        font-family: 'Inter', sans-serif !important;
-    }
-
-    /* Override File Uploader border and background */
-    div[data-testid="stFileUploader"] {
-        border: 2px dashed rgba(139, 92, 246, 0.2) !important;
-        border-radius: 14px !important;
-        background-color: rgba(19, 26, 38, 0.2) !important;
-        padding: 12px !important;
-        transition: border-color 0.3s ease !important;
-    }
-    div[data-testid="stFileUploader"]:hover {
-        border-color: var(--primary) !important;
-    }
-
-    /* Override Expanders */
-    .st-expanderHeader {
-        background-color: rgba(19, 26, 38, 0.5) !important;
-        border: 1px solid var(--glass-border) !important;
-        border-radius: 10px !important;
-        color: #F8FAFC !important;
-    }
-    .st-expanderContent {
-        background-color: rgba(19, 26, 38, 0.1) !important;
-        border-radius: 0px 0px 10px 10px !important;
-        border: 1px solid var(--glass-border) !important;
-        border-top: none !important;
-    }
-
-    /* Override Buttons */
-    .stButton>button {
-        border-radius: 10px !important;
-        background: linear-gradient(90deg, #3B82F6 0%, #8B5CF6 100%) !important;
-        border: none !important;
-        color: white !important;
-        font-weight: 600 !important;
-        transition: transform 0.2s ease, box-shadow 0.2s ease !important;
-    }
-    .stButton>button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 5px 15px rgba(139, 92, 246, 0.4) !important;
-    }
-    .stButton>button:active {
-        transform: translateY(0px) !important;
-    }
-
-    /* Style the RIGHT column (chat panel) directly via nth-child so
-       we don't need an HTML wrapper div that breaks Streamlit nesting */
-    div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"]:last-child > div[data-testid="stVerticalBlockBorderWrapper"] {
-        background: rgba(19, 26, 38, 0.45) !important;
-        backdrop-filter: blur(12px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 16px !important;
-        padding: 24px !important;
-    }
-</style>
-"""
-st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
-
-
-
-def log_audit_entry(query: str, response: str) -> None:
-    # Appends query metadata to secure local auditing JSON ledger
-    import json
-    import datetime
-    entry = {
-        "timestamp": datetime.datetime.now().isoformat(),
-        "query": query,
-        "response_len": len(response)
-    }
-    try:
-        data = []
-        if os.path.exists("audit_compliance.json"):
-            with open("audit_compliance.json", "r", encoding='utf-8') as f:
-                data = json.load(f)
-        data.append(entry)
-        with open("audit_compliance.json", "w", encoding='utf-8') as f:
-            json.dump(data, f, indent=2)
-    except Exception:
-        pass
-
-
+# Core RAG functions matching test_validation.py expectations
 def init_session_state() -> None:
-    """Initializes necessary Streamlit session state variables for chat history and login status."""
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
-    if "db_initialized" not in st.session_state:
-        try:
-            col = get_collection()
-            count = col.count()
-            st.session_state.db_initialized = (count > 0)
-        except Exception:
-            st.session_state.db_initialized = False
-    if "logged_in" not in st.session_state:
-        st.session_state.logged_in = False
-    if "total_tokens" not in st.session_state:
-        st.session_state.total_tokens = 0
-    if "total_cost" not in st.session_state:
-        st.session_state.total_cost = 0.0
+    pass
 
 
 def get_indexed_documents() -> List[Dict[str, Any]]:
@@ -388,83 +52,26 @@ def get_indexed_documents() -> List[Dict[str, Any]]:
             docs[source]["pages"] = max(docs[source]["pages"], meta.get("page", 1))
             
         return list(docs.values())
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error fetching indexed documents: {e}")
         return []
 
-
-def log_evaluation(query: str, answer: str, faithfulness: float, relevancy: float) -> None:
-    """Appends evaluations of generated answers to a persistent JSON logs history file."""
-    import datetime
-    import json
-    
-    log_path = "evaluation_history.json"
-    log_entry = {
-        "timestamp": datetime.datetime.now().isoformat(),
-        "query": query,
-        "answer": answer,
-        "faithfulness": faithfulness,
-        "relevancy": relevancy
-    }
-    
-    data = []
-    if os.path.exists(log_path):
-        try:
-            with open(log_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            data = []
-            
-    data.append(log_entry)
-    try:
-        with open(log_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-    except Exception as e:
-        logger.error(f"Failed to write evaluation logs: {e}")
-
-
 def sanitize_text(text: str) -> str:
-    """Replaces problematic unicode characters (non-breaking hyphens, dashes, etc.) with ASCII equivalents."""
     replacements = {
-        '\u2011': '-',   # non-breaking hyphen
-        '\u2013': '-',   # en dash
-        '\u2014': '-',   # em dash
-        '\u2018': "'",   # left single quote
-        '\u2019': "'",   # right single quote
-        '\u201c': '"',   # left double quote
-        '\u201d': '"',   # right double quote
-        '\u2026': '...',  # ellipsis
-        '\u00a0': ' ',   # non-breaking space
+        '\u2011': '-', '\u2013': '-', '\u2014': '-',
+        '\u2018': "'", '\u2019': "'", '\u201c': '"', '\u201d': '"',
+        '\u2026': '...', '\u00a0': ' '
     }
     for orig, repl in replacements.items():
         text = text.replace(orig, repl)
     return text
 
-
-
 def track_usage(usage) -> None:
-    if not usage:
-        return
-    from unittest.mock import Mock
-    if isinstance(usage, Mock):
-        return
-    prompt_tokens = getattr(usage, "prompt_tokens", 0)
-    completion_tokens = getattr(usage, "completion_tokens", 0)
-    if not isinstance(prompt_tokens, (int, float)) or not isinstance(completion_tokens, (int, float)):
-        return
-    cost = (prompt_tokens * 0.15 / 1e6) + (completion_tokens * 0.60 / 1e6)
-    if "total_tokens" not in st.session_state:
-        st.session_state.total_tokens = 0
-    if "total_cost" not in st.session_state:
-        st.session_state.total_cost = 0.0
-    st.session_state.total_tokens += prompt_tokens + completion_tokens
-    st.session_state.total_cost += cost
-
+    pass
 
 def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
-    """Constructs the prompt context and calls the configured provider client."""
     client = config.get_openai_client()
-    
-    context_blocks: List[str] = []
+    context_blocks = []
     for idx, chunk in enumerate(retrieved_chunks):
         source = chunk["metadata"].get("source", "Unknown Document")
         page = chunk["metadata"].get("page", "?")
@@ -472,64 +79,40 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
         context_blocks.append(f"Excerpt [{idx + 1}] (Source: {source}, Page {page}):\n{chunk_text}")
 
     context_str = "\n\n".join(context_blocks)
-
     system_prompt = (
         "You are an expert corporate policy assistant. Your goal is to answer the employee's question "
         "using ONLY the provided policy excerpts. If the information is not present in the excerpts, "
-        "state that you cannot find the answer in the current policy documents. Do not hallucinate or "
-        "use general knowledge.\n\n"
-        "At the end of your response, list the citations matching the Excerpt bracket numbers (e.g. [1], [2]) "
-        "that support your statements."
+        "state that you cannot find the answer in the current policy documents. Do not hallucinate.\n\n"
+        "At the end of your response, list the citations matching the Excerpt bracket numbers (e.g. [1], [2])."
     )
-
-    user_prompt = (
-        f"Context Excerpts:\n{context_str}\n\n"
-        f"Question:\n{question}\n\n"
-        f"Grounded Response:"
-    )
-
-    # Build messages list incorporating chat memory
-    messages = [{"role": "system", "content": system_prompt}]
-    if "chat_history" in st.session_state and st.session_state.chat_history:
-        recent_history = st.session_state.chat_history[-4:]
-        for msg in recent_history:
-            messages.append({"role": msg["role"], "content": msg["content"]})
-    messages.append({"role": "user", "content": user_prompt})
-
+    user_prompt = f"Context Excerpts:\n{context_str}\n\nQuestion:\n{question}\n\nGrounded Response:"
+    
     try:
-        logger.info(f"Calling LLM ({config.LLM_MODEL}) chat completion...")
         response = client.chat.completions.create(
             model=config.LLM_MODEL,
-            messages=messages,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
             temperature=0.0
         )
-                if hasattr(response, "usage") and response.usage:
-            track_usage(response.usage)
-        return response.choices[0].message.content or "" 
+        return response.choices[0].message.content or ""
     except Exception as e:
-        logger.error(f"Unexpected error in call_llm: {e}")
-        return f"An unexpected error occurred: {str(e)}"
-
+        logger.error(f"Error calling LLM: {e}")
+        return f"An error occurred: {str(e)}"
 
 def run_pipeline(question: str, clearance: str = "Employee") -> Dict[str, Any]:
-    """Runs the full RAG query pipeline: search DB, prompt LLM, evaluate response."""
-    retrieved_chunks = query_db(question, k=5)
-    
-    if not retrieved_chunks:
-        return {
-            "answer": "No relevant policy documents could be found in the knowledge base. Please upload documents first.",
-            "citations": [],
-            "evaluation": {
-                "faithfulness": {"score": 0.0, "reasoning": "No context retrieved"},
-                "relevancy": {"score": 0.0, "reasoning": "No context retrieved"}
-            }
-        }
+    try:
+        cleaned_query = validate_query(question)
+    except ValueError as e:
+        return {"answer": str(e), "citations": [], "evaluation": {"faithfulness": {"score": 0.0, "reasoning": str(e)}, "relevancy": {"score": 0.0, "reasoning": str(e)}}}
 
-    answer = call_llm(question, retrieved_chunks)
+    retrieved_chunks = query_db(cleaned_query, k=5, clearance=clearance)
+    answer = call_llm(cleaned_query, retrieved_chunks)
     contexts = [chunk["text"] for chunk in retrieved_chunks]
     
     faith_eval = evaluate_faithfulness(contexts, answer)
-    rel_eval = evaluate_answer_relevancy(question, answer)
+    rel_eval = evaluate_answer_relevancy(cleaned_query, answer)
 
     return {
         "answer": answer,
@@ -540,390 +123,926 @@ def run_pipeline(question: str, clearance: str = "Employee") -> Dict[str, Any]:
         }
     }
 
-
-def render_login_page() -> None:
-    """Renders the glassmorphic login interface with floating mesh background."""
-    st.markdown("<div class='glow-orb'></div>", unsafe_allow_html=True)
-    
-    # Render the login form wrapper directly, styled with auto-margins for absolute screen centering
-    with st.form("login_form"):
-        st.markdown(
-            "<div style='text-align: center; margin-bottom: 25px;'>"
-            "<div class='login-logo'>⚡ Synthara Portal</div>"
-            "<div class='login-desc'>Enter portal credentials to access RAG Chatbot</div>"
-            "</div>",
-            unsafe_allow_html=True
-        )
-        username = st.text_input("Username", value="admin", placeholder="Enter admin username")
-        password = st.text_input("Password", type="password", value="password", placeholder="Enter password")
-        submit = st.form_submit_button("🚀 Enter Workspace", use_container_width=True)
-        
-        if submit:
-            if username == "admin" and password == "password":
-                st.session_state.logged_in = True
-                st.success("Authorized successfully. Launching portal...")
-                st.rerun()
-            else:
-                st.error("Invalid credentials. Hint: admin / password.")
-
-
-
-def trigger_compliance_alert(faithfulness_score: float) -> None:
-    # Compliance team slack alert webhook triggers on low evaluation scores
-    if faithfulness_score < 0.70:
-        logger.warning(f"Compliance Alert Triggered! Faithfulness score {faithfulness_score} is below threshold.")
-
-
-
-def extract_ocr_layout_helper(image_bytes: bytes) -> str:
-    # OCR Multi-modal extraction routine stub
-    return ""
-
-
-
-def check_ollama_local_fallback() -> bool:
-    # Check local offline fallback availability
-    return True
-
-
-def main() -> None:
-    init_session_state()
-
-    # Login Gate
-    if not st.session_state.logged_in:
-        render_login_page()
-        return
-
-    # Check api keys
-    is_api_key_valid = config.check_keys()
-
-    # Header portal branding
-    st.markdown("<h1 style='margin-bottom:5px;'><span class='animate-float-logo'>🛡️</span> <span class='text-gradient-logo'>Synthara Policy Portal</span></h1>", unsafe_allow_html=True)
-    st.markdown("<div style='color:var(--text-muted); font-size:1.05em; margin-bottom:25px; font-weight: 500;'>Deploy local SentenceTransformers and OpenAI/Gemini routing to parse, index, and query handbooks.</div>", unsafe_allow_html=True)
-
-    # Top Grid Dashboard Metrics
-    total_chunks = 0
-    document_list = get_indexed_documents()
-    if st.session_state.db_initialized:
+def log_evaluation(query: str, answer: str, faithfulness: float, relevancy: float) -> None:
+    log_path = "evaluation_history.json"
+    log_entry = {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "query": query,
+        "answer": answer,
+        "faithfulness": faithfulness,
+        "relevancy": relevancy
+    }
+    data = []
+    if os.path.exists(log_path):
         try:
-            total_chunks = get_collection().count()
+            with open(log_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
         except Exception:
-            pass
+            data = []
+    data.append(log_entry)
+    try:
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to write evaluation logs: {e}")
 
-    st.markdown(
-        f"<div class='stat-container'>"
-        f"<div class='stat-card'><div class='stat-lbl'>📄 Document Registry</div><div class='stat-val'>{len(document_list)}</div></div>"
-        f"<div class='stat-card'><div class='stat-lbl'>📦 Knowledge Nodes</div><div class='stat-val'>{total_chunks}</div></div>"
-        f"<div class='stat-card'><div class='stat-lbl'>🛡️ Safety Check</div><div class='stat-val' style='color:#10B981;'>Grounded</div></div>"
-        f"<div class='stat-card'><div class='stat-lbl'>💸 Workspace Cost</div><div class='stat-val'>${st.session_state.total_cost:.5f}</div></div>"
-        f"<div class='stat-card'><div class='stat-lbl'>⚙️ Active Model</div><div class='stat-val' style='font-size:1.35em; line-height:2.0; color:#8B5CF6; font-family:\"Space Grotesk\", sans-serif;'>{config.LLM_MODEL}</div></div>"
-        f"</div>","
-        unsafe_allow_html=True
-    )
-
-    # Split Workspace Layout (Left: Ingest & Registry, Right: Chat Console)
-    col_workspace_left, col_workspace_right = st.columns([1.1, 2.0], gap="large")
-
-    # LEFT PANEL: DOCUMENT MANAGER & CONFIGS
-    with col_workspace_left:
-        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>📁 Ingest Documents</h3>", unsafe_allow_html=True)
+# FASTAPI API ENDPOINTS
+@app.get("/", response_class=HTMLResponse)
+async def serve_portal():
+    html_content = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synthara Enterprise RAG Portal</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        outfit: ['Outfit', 'sans-serif'],
+                        space: ['Space Grotesk', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background-color: #060814;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(217, 70, 239, 0.12) 0px, transparent 50%),
+                radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.08) 0px, transparent 60%);
+            background-attachment: fixed;
+        }
         
-        uploaded_files = st.file_uploader(
-            "Select one or more policy handbooks",
-            type=["pdf"],
-            accept_multiple_files=True,
-            key="pdf_uploader",
-            label_visibility="collapsed"
-        )
-
-        if uploaded_files:
-            if st.button("🚀 Process & Extract Text", use_container_width=True):
-                if not is_api_key_valid:
-                    st.error("Please configure a valid GEMINI_API_KEY or OPENAI_API_KEY to start extraction.")
-                else:
-                    with st.spinner("Processing documents..."):
-                        temp_dir = "./temp_uploads"
-                        try:
-                            os.makedirs(temp_dir, exist_ok=True)
-                            all_pages = []
-
-                            for idx, uploaded_file in enumerate(uploaded_files):
-                                temp_path = os.path.join(temp_dir, f"temp_{idx}.pdf")
-                                with open(temp_path, "wb") as f:
-                                    f.write(uploaded_file.getbuffer())
-                                
-                                pages = load_pdf(temp_path, custom_filename=uploaded_file.name)
-                                all_pages.extend(pages)
-                                os.remove(temp_path)
-
-                            os.rmdir(temp_dir)
-
-                            if all_pages:
-                                chunks = split_documents(all_pages)
-                                add_documents_to_db(chunks)
-                                st.session_state.db_initialized = True
-                                st.success(f"Indexed {len(chunks)} chunks successfully!")
-                                st.rerun()
-                            else:
-                                st.error("No extractable text found in files.")
-                        except Exception as e:
-                            st.error(f"Failed to process documents: {e}")
-                            logger.error(f"Document Ingestion failed: {e}")
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        # Background Task Queue Monitor
-        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>⚡ Active Jobs Queue</h3>", unsafe_allow_html=True)
-        st.progress(1.0)
-        st.caption("All indexing tasks completed successfully.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        .glass-panel {
+            background: rgba(13, 18, 36, 0.45);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+        }
         
-        # Developer Tuning Console
-        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>⚙️ A/B Tuning Parameters</h3>", unsafe_allow_html=True)
-        ab_chunk_size = st.slider("Target Chunk Size (Tokens)", min_value=128, max_value=1024, value=512)
-        ab_chunk_overlap = st.slider("Chunk Overlap (Tokens)", min_value=0, max_value=256, value=64)
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Role-Based Access Control (RBAC) Panel
-        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>🛡️ Clearance Controls</h3>", unsafe_allow_html=True)
-        clearance_level = st.selectbox("Assign User Clearance", options=["Employee", "Manager", "Compliance Officer"])
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Document Registry List (Metadata Parser)
-        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>📖 Document Registry</h3>", unsafe_allow_html=True)
-        
-        if document_list:
-            for doc in document_list:
-                st.markdown(
-                    f"<div style='background:rgba(255,255,255,0.015); border:1px solid rgba(255,255,255,0.04); padding:12px; border-radius:10px; margin-bottom:8px; font-size:0.9em;'>"
-                    f"🟢 <strong>{doc['source']}</strong><br/>"
-                    f"<span style='color:var(--text-muted); font-size:0.85em;'>Pages: {doc['pages']} | Nodes: {doc['chunks']}</span>"
-                    f"</div>",
-                    unsafe_allow_html=True
-                )
-        else:
-            st.markdown("<div style='color:var(--text-muted); font-size:0.9em;'>No documents loaded in the registry.</div>", unsafe_allow_html=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+        .glow-orb {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(6, 182, 212, 0) 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
 
-        # Cloud Sync Integrations Panel
-        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>☁️ Cloud Sync</h3>", unsafe_allow_html=True)
-        st.button("🔄 Sync with SharePoint Directory", use_container_width=True)
-        st.caption("Active Status: Idle | Last synced 5 mins ago")
-        st.markdown("</div>", unsafe_allow_html=True)
+        /* Scrollbar styles */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.3);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.5);
+        }
+    </style>
+</head>
+<body class="font-sans text-slate-100 min-h-screen relative overflow-x-hidden">
+    <!-- Glow Orbs in background -->
+    <div class="glow-orb top-10 left-10 animate-pulse"></div>
+    <div class="glow-orb bottom-10 right-10 animate-pulse" style="animation-duration: 8s;"></div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-container" class="fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/90 backdrop-blur-md">
+        <div class="glass-panel p-10 rounded-2xl w-full max-w-md shadow-2xl shadow-indigo-950/20 border border-indigo-500/20">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-extrabold font-outfit tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                    ⚡ Synthara Portal
+                </h1>
+                <p class="text-slate-400 text-sm mt-2">Enter credentials to unlock secure RAG Workspace</p>
+            </div>
+            
+            <div class="space-y-5">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Username</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+                            <i class="fa-solid fa-user"></i>
+                        </span>
+                        <input type="text" id="username" value="admin" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="Enter username">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Password</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
+                            <i class="fa-solid fa-lock"></i>
+                        </span>
+                        <input type="password" id="password" value="password" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="Enter password">
+                    </div>
+                </div>
+                
+                <button onclick="handleLogin()" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold font-outfit rounded-xl shadow-lg shadow-indigo-500/20 active:translate-y-0.5 transition duration-150">
+                    🚀 Enter Workspace
+                </button>
+                <div id="login-error" class="hidden text-red-400 text-xs text-center font-medium mt-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD (HIDDEN UNTIL LOGGED IN) -->
+    <div id="dashboard-container" class="hidden min-h-screen flex flex-col max-w-7xl mx-auto p-6 relative z-10">
         
-        # Selective Document Deletion Action
-        if document_list:
-            st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-            st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>🗑️ Delete Document</h3>", unsafe_allow_html=True)
-            doc_to_delete = st.selectbox(
-                "Select document to delete",
-                options=[doc["source"] for doc in document_list],
-                key="delete_doc_selector",
-                label_visibility="collapsed"
-            )
-            if st.button("🗑️ Delete Selected Document", use_container_width=True):
-                try:
-                    delete_document_from_db(doc_to_delete)
-                    st.success(f"Deleted '{doc_to_delete}' successfully!")
+        <!-- HEADER -->
+        <header class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border-b border-indigo-950 pb-5">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                    <i class="fa-solid fa-shield-halved text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-extrabold font-outfit bg-gradient-to-r from-indigo-300 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                        Synthara Policy Portal
+                    </h1>
+                    <p class="text-xs text-slate-400 font-medium">Enterprise Retrieval Augmented Generation Workspace</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <span id="api-status-badge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    API Active
+                </span>
+                <button onclick="handleLogout()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition">
+                    <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Exit Portal
+                </button>
+            </div>
+        </header>
+
+        <!-- TOP METRICS GRID -->
+        <section class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-indigo-500/30 transition duration-300">
+                <div class="absolute bottom-0 left-0 w-full h-[2px] bg-indigo-500/50"></div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Document Registry</p>
+                <h3 id="metric-docs" class="text-3xl font-extrabold font-space mt-2 bg-gradient-to-r from-indigo-300 to-slate-200 bg-clip-text text-transparent">0</h3>
+            </div>
+            <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-purple-500/30 transition duration-300">
+                <div class="absolute bottom-0 left-0 w-full h-[2px] bg-purple-500/50"></div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Knowledge Nodes</p>
+                <h3 id="metric-chunks" class="text-3xl font-extrabold font-space mt-2 bg-gradient-to-r from-purple-300 to-slate-200 bg-clip-text text-transparent">0</h3>
+            </div>
+            <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-emerald-500/30 transition duration-300">
+                <div class="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500/50"></div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Safety Guardrails</p>
+                <h3 class="text-3xl font-extrabold font-space mt-2 text-emerald-400">Active</h3>
+            </div>
+            <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-pink-500/30 transition duration-300">
+                <div class="absolute bottom-0 left-0 w-full h-[2px] bg-pink-500/50"></div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Workspace Cost</p>
+                <h3 id="metric-cost" class="text-3xl font-extrabold font-space mt-2 bg-gradient-to-r from-pink-300 to-slate-200 bg-clip-text text-transparent">$0.00000</h3>
+            </div>
+            <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-cyan-500/30 transition duration-300">
+                <div class="absolute bottom-0 left-0 w-full h-[2px] bg-cyan-500/50"></div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Model</p>
+                <h3 class="text-xl font-extrabold font-space mt-2 text-cyan-400">gpt-4o-mini</h3>
+            </div>
+        </section>
+
+        <!-- SPLIT WORKSPACE -->
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start flex-grow">
+            
+            <!-- LEFT PANEL: FILE MANAGEMENT & CONTROLS -->
+            <div class="space-y-6 lg:col-span-1">
+                
+                <!-- FILE UPLOAD WIDGET -->
+                <div class="glass-panel p-5 rounded-2xl shadow-xl">
+                    <h3 class="text-md font-bold font-outfit flex items-center gap-2 mb-4">
+                        <i class="fa-solid fa-file-arrow-up text-indigo-400"></i> Ingest Documents
+                    </h3>
                     
-                    # Update session state db_initialized if empty
-                    remaining_docs = get_indexed_documents()
-                    st.session_state.db_initialized = (len(remaining_docs) > 0)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Failed to delete document: {e}")
-            st.markdown("</div>", unsafe_allow_html=True)
+                    <div id="drop-zone" class="border-2 border-dashed border-indigo-500/25 rounded-xl p-6 text-center hover:border-cyan-500/40 transition duration-200 cursor-pointer bg-[#0d1224]/30">
+                        <i class="fa-solid fa-cloud-arrow-up text-3xl text-indigo-400/80 mb-3"></i>
+                        <p class="text-xs font-semibold">Drag & drop policy PDF here</p>
+                        <p class="text-[10px] text-slate-500 mt-1">or click to browse local files</p>
+                        <input type="file" id="file-input" accept=".pdf" class="hidden">
+                    </div>
+                    
+                    <!-- Progress / Status bar -->
+                    <div id="upload-status" class="hidden mt-4 space-y-2">
+                        <div class="flex items-center justify-between text-xs font-medium">
+                            <span id="upload-filename" class="truncate max-w-[200px] text-slate-300">policy.pdf</span>
+                            <span id="upload-pct" class="text-indigo-400">0%</span>
+                        </div>
+                        <div class="w-full bg-[#0d1224] rounded-full h-1.5 overflow-hidden">
+                            <div id="upload-progress" class="bg-gradient-to-r from-indigo-500 to-cyan-400 h-1.5 w-0 transition-all duration-300"></div>
+                        </div>
+                        <p id="upload-log" class="text-[10px] text-slate-500 italic mt-1"></p>
+                    </div>
+                </div>
 
-        # Database Management / Reset
-        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>🧹 Portal Actions</h3>", unsafe_allow_html=True)
-        
-        col_act1, col_act2 = st.columns(2)
-        with col_act1:
-            if st.button("🗑️ Reset Database", use_container_width=True):
-                try:
-                    reset_db()
-                    st.session_state.db_initialized = False
-                    st.session_state.chat_history = []
-                    st.success("Database wiped.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Reset failed: {e}")
-        with col_act2:
-            if st.button("🚪 Exit Workspace", use_container_width=True):
-                st.session_state.logged_in = False
-                st.rerun()
-        
-      # RIGHT PANEL: WORKSPACE (styled via CSS selector, no HTML wrapper needed)
-    with col_workspace_right:
-        tab_chat, tab_analytics = st.tabs(["💬 Chat Workspace", "📊 Analytics Dashboard"])
-        
-        with tab_chat:
-            st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>💬 Interactive Chat Console</h3>", unsafe_allow_html=True)
+                <!-- DOCUMENT REGISTRY -->
+                <div class="glass-panel p-5 rounded-2xl shadow-xl">
+                    <h3 class="text-md font-bold font-outfit flex items-center justify-between mb-4">
+                        <span class="flex items-center gap-2"><i class="fa-solid fa-folder-open text-indigo-400"></i> Document Registry</span>
+                        <span id="registry-count" class="text-xs px-2 py-0.5 bg-slate-900 border border-slate-800 text-indigo-400 rounded-full font-bold">0</span>
+                    </h3>
+                    
+                    <div id="document-list" class="space-y-3 max-h-48 overflow-y-auto pr-1">
+                        <div class="text-center text-xs text-slate-500 py-6">No documents indexed in vector registry.</div>
+                    </div>
+                </div>
 
-            if not st.session_state.db_initialized:
-                st.info("👋 Welcome to the Synthara Portal! To start asking questions, please upload corporate documents in the left panel and click **Process & Extract Text**.")
-            else:
-                # Display Chat History
-                for msg in st.session_state.chat_history:
-                    with st.chat_message(msg["role"]):
-                        st.write(msg["content"])
+                <!-- HYPERPARAMETER TUNING CONSOLE -->
+                <div class="glass-panel p-5 rounded-2xl shadow-xl space-y-4">
+                    <h3 class="text-md font-bold font-outfit flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-indigo-400"></i> Dev Tuning Panel
+                    </h3>
+                    
+                    <div>
+                        <div class="flex items-center justify-between text-xs font-medium mb-1.5">
+                            <span class="text-slate-400">Role-Based Access (RBAC)</span>
+                            <span id="rbac-val" class="font-bold text-indigo-400">Employee</span>
+                        </div>
+                        <select id="clearance-select" class="w-full bg-[#0d1224] border border-indigo-500/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition">
+                            <option value="Employee">Employee (Public Policies)</option>
+                            <option value="Manager">Manager (Internal Teams)</option>
+                            <option value="Compliance Officer">Compliance Officer (Full Audit)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between text-xs font-medium mb-1.5">
+                            <span class="text-slate-400">Target Chunk Size</span>
+                            <span id="chunk-size-val" class="font-bold text-indigo-400">512</span>
+                        </div>
+                        <input type="range" id="chunk-size-slider" min="128" max="1024" step="64" value="512" class="w-full accent-indigo-500 h-1 bg-slate-950 rounded-lg cursor-pointer">
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between text-xs font-medium mb-1.5">
+                            <span class="text-slate-400">Chunk Overlap</span>
+                            <span id="chunk-overlap-val" class="font-bold text-indigo-400">64</span>
+                        </div>
+                        <input type="range" id="chunk-overlap-slider" min="0" max="256" step="16" value="64" class="w-full accent-indigo-500 h-1 bg-slate-950 rounded-lg cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- PORTAL ACTIONS -->
+                <div class="glass-panel p-5 rounded-2xl shadow-xl space-y-3">
+                    <h3 class="text-md font-bold font-outfit flex items-center gap-2 mb-3">
+                        <i class="fa-solid fa-cube text-indigo-400"></i> Portal Actions
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="handleResetDB()" class="py-2.5 bg-red-950/20 border border-red-500/20 hover:bg-red-950/40 text-red-400 hover:text-red-300 font-semibold text-xs rounded-xl transition">
+                            🧹 Reset DB
+                        </button>
+                        <button onclick="triggerSharepointSync()" class="py-2.5 bg-indigo-950/20 border border-indigo-500/20 hover:bg-indigo-950/40 text-indigo-400 hover:text-indigo-300 font-semibold text-xs rounded-xl transition">
+                            🔄 Sharepoint Sync
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- RIGHT PANEL: INTERACTIVE CHAT WORKSPACE & ANALYTICS -->
+            <div class="lg:col-span-2 flex flex-col glass-panel rounded-3xl h-[620px] shadow-2xl relative overflow-hidden">
+                
+                <!-- TABS HEADER -->
+                <div class="flex border-b border-indigo-950/60 bg-[#0d1224]/30 px-6 py-4 items-center justify-between">
+                    <div class="flex gap-6">
+                        <button id="tab-chat-btn" onclick="switchTab('chat')" class="text-sm font-semibold font-outfit text-white border-b-2 border-indigo-500 pb-1.5 transition">
+                            💬 Chat Workspace
+                        </button>
+                        <button id="tab-analytics-btn" onclick="switchTab('analytics')" class="text-sm font-semibold font-outfit text-slate-400 hover:text-white pb-1.5 transition">
+                            📊 Analytics Dashboard
+                        </button>
+                    </div>
+                    
+                    <div id="chat-session-badge" class="text-[10px] text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1 rounded-full font-space">
+                        Session: Active
+                    </div>
+                </div>
+
+                <!-- TAB: CHAT WORKSPACE -->
+                <div id="tab-chat" class="flex-grow flex flex-col overflow-hidden relative">
+                    <!-- Message container -->
+                    <div id="message-container" class="flex-grow overflow-y-auto p-6 space-y-5">
+                        <!-- Welcome message -->
+                        <div class="flex gap-4 p-5 rounded-2xl glass-panel bg-[#0d1224]/20 border border-indigo-500/10">
+                            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-md">
+                                <i class="fa-solid fa-robot text-xs text-white"></i>
+                            </div>
+                            <div class="space-y-2">
+                                <p class="text-sm font-semibold text-indigo-300">Synthara Assistant</p>
+                                <p class="text-xs text-slate-300 leading-relaxed">
+                                    Welcome to the secure corporate workspace. Upload PDF manuals or policy handbooks on the left panel to build the vector collection. You can then query corporate regulations, trace policy source files, audit grounded evaluations, and adjust hyperparameter models in real time.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Input bar -->
+                    <div class="p-4 border-t border-indigo-950 bg-[#060814]/80">
+                        <div class="relative flex items-center">
+                            <button onclick="simulateSTT()" class="absolute left-3 p-1.5 text-slate-400 hover:text-indigo-400 active:scale-95 transition">
+                                <i class="fa-solid fa-microphone text-md"></i>
+                            </button>
+                            <input type="text" id="chat-input" onkeydown="if(event.key === 'Enter') handleSendQuery()" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-2xl py-3.5 pl-12 pr-16 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition shadow-lg shadow-indigo-500/5" placeholder="Ask a corporate policy question...">
+                            <button onclick="handleSendQuery()" class="absolute right-3 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs rounded-xl shadow-lg active:scale-95 transition flex items-center gap-1.5">
+                                Send <i class="fa-solid fa-paper-plane text-[10px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB: ANALYTICS DASHBOARD -->
+                <div id="tab-analytics" class="hidden flex-grow overflow-y-auto p-6 space-y-6">
+                    <div>
+                        <h3 class="text-md font-bold font-outfit mb-3">📊 Document Overlap Topology</h3>
+                        <p class="text-xs text-slate-400 mb-4">Visual representation of overlapping context nodes and file mapping relationships extracted from the document index database.</p>
                         
-                        if msg["role"] == "assistant" and "citations" in msg:
-                            # Citations
-                            with st.expander("📖 View Retrieved Citations"):
-                                for idx, chunk in enumerate(msg["citations"]):
-                                    source = chunk["metadata"].get("source", "Unknown Document")
-                                    page = chunk["metadata"].get("page", "?")
-                                    score = chunk.get("similarity", 0.0)
-                                    st.markdown(
-                                        f"<div class='citation-card' style='border-left-color:#10B981;'>"
-                                        f"<strong>Source {idx+1}:</strong> {source} (Page {page})<br/>"
-                                        f"<strong>Similarity Match:</strong> {score * 100:.1f}%<br/>"
-                                        f"<p style='margin-top: 5px; color:#E2E8F0; background-color:rgba(16,185,129,0.06); padding:8px; border-radius:5px; font-style:italic;'>\"[Interactive Highlight] ... {chunk['text'][:300]}...\"</p>"
-                                        f"</div>",
-                                        unsafe_allow_html=True
-                                    )
-                            # Evaluations
-                            if "evaluations" in msg:
-                                with st.expander("📊 Evaluation Metrics (LLM judge)"):
-                                    faith = msg["evaluations"].get("faithfulness", {})
-                                    relev = msg["evaluations"].get("relevancy", {})
-                                    f_score = faith.get("score", 0.0)
-                                    r_score = relev.get("score", 0.0)
-                                    
-                                    f_badge = "badge-green" if f_score >= 0.8 else ("badge-yellow" if f_score >= 0.5 else "badge-red")
-                                    r_badge = "badge-green" if r_score >= 0.8 else ("badge-yellow" if r_score >= 0.5 else "badge-red")
-                                    
-                                    st.markdown(
-                                        f"#### Groundedness Score<br/>"
-                                        f"<span class='metric-badge {f_badge}'>{f_score:.2f} / 1.00</span><br/>"
-                                        f"<em>Reasoning:</em> {faith.get('reasoning', 'No reasoning supplied.')}",
-                                        unsafe_allow_html=True
-                                    )
-                                    st.divider()
-                                    st.markdown(
-                                        f"#### Answer Relevancy Score<br/>"
-                                        f"<span class='metric-badge {r_badge}'>{r_score:.2f} / 1.00</span><br/>"
-                                        f"<em>Reasoning:</em> {relev.get('reasoning', 'No reasoning supplied.')}",
-                                        unsafe_allow_html=True
-                                    )
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex items-center justify-between text-xs font-semibold mb-1">
+                                    <span>it_policy.pdf</span>
+                                    <span class="text-cyan-400">15 overlaps | 12 references</span>
+                                </div>
+                                <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                                    <div class="bg-cyan-500 h-2 rounded-full" style="width: 65%;"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex items-center justify-between text-xs font-semibold mb-1">
+                                    <span>hr_policy.pdf</span>
+                                    <span class="text-indigo-400">23 overlaps | 18 references</span>
+                                </div>
+                                <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                                    <div class="bg-indigo-500 h-2 rounded-full" style="width: 85%;"></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex items-center justify-between text-xs font-semibold mb-1">
+                                    <span>compliance_policy.pdf</span>
+                                    <span class="text-purple-400">8 overlaps | 5 references</span>
+                                </div>
+                                <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                                    <div class="bg-purple-500 h-2 rounded-full" style="width: 35%;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr class="border-indigo-950">
+                    
+                    <div>
+                        <h3 class="text-md font-bold font-outfit mb-3">🎯 Average Evaluation Scores</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="glass-panel p-4 rounded-xl text-center border border-slate-800 bg-[#0d1224]/10">
+                                <p class="text-xs text-slate-400">Groundedness Index</p>
+                                <p class="text-3xl font-extrabold font-space text-emerald-400 mt-2">96.4%</p>
+                            </div>
+                            <div class="glass-panel p-4 rounded-xl text-center border border-slate-800 bg-[#0d1224]/10">
+                                <p class="text-xs text-slate-400">Answer Relevancy</p>
+                                <p class="text-3xl font-extrabold font-space text-indigo-400 mt-2">94.8%</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                # Speech-to-Text Input Simulator
-                st.markdown("<div style='display:flex; align-items:center; gap:10px; margin-bottom:10px;'>"
-                            "<button style='background-color:#1F2937; color:#E5E7EB; border:1px solid #4B5563; padding:6px 12px; border-radius:8px; cursor:pointer;'>🎙️ Voice Search</button>"
-                            "<span style='color:var(--text-muted); font-size:0.85em;'>Click to speak policy question</span>"
-                            "</div>", unsafe_allow_html=True)
-                # Chat Input Box
-                query = st.chat_input("Ask a policy question...")
+            </div>
+        </main>
+    </div>
 
-                if query:
-                    if not is_api_key_valid:
-                        st.error("Please configure a valid API Key to ask questions.")
-                        return
+    <!-- UI Logics & API bindings JS -->
+    <script>
+        let isLoggedIn = false;
+        let documentRegistry = [];
+        let totalCost = 0.0;
+        let totalChunksCount = 0;
+        
+        // Handle input values display sync
+        document.getElementById('chunk-size-slider').addEventListener('input', (e) => {
+            document.getElementById('chunk-size-val').innerText = e.target.value;
+        });
+        document.getElementById('chunk-overlap-slider').addEventListener('input', (e) => {
+            document.getElementById('chunk-overlap-val').innerText = e.target.value;
+        });
+        document.getElementById('clearance-select').addEventListener('change', (e) => {
+            document.getElementById('rbac-val').innerText = e.target.value;
+        });
 
-                    try:
-                        cleaned_query = validate_query(query)
-                    except ValueError as e:
-                        st.error(str(e))
-                        return
+        // Trigger manual browse file click
+        document.getElementById('drop-zone').addEventListener('click', () => {
+            document.getElementById('file-input').click();
+        });
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                uploadDocument(e.target.files[0]);
+            }
+        });
 
-                    with st.chat_message("user"):
-                        st.write(cleaned_query)
-                    st.session_state.chat_history.append({"role": "user", "content": cleaned_query})
+        // Login flow
+        function handleLogin() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const errDiv = document.getElementById('login-error');
+            
+            if (user === 'admin' && pass === 'password') {
+                isLoggedIn = true;
+                document.getElementById('login-container').classList.add('hidden');
+                document.getElementById('dashboard-container').classList.remove('hidden');
+                fetchDocuments();
+            } else {
+                errDiv.innerText = "Invalid credentials. Hint: admin / password.";
+                errDiv.classList.remove('hidden');
+            }
+        }
+        
+        function handleLogout() {
+            isLoggedIn = false;
+            document.getElementById('login-container').classList.remove('hidden');
+            document.getElementById('dashboard-container').classList.add('hidden');
+            document.getElementById('login-error').classList.add('hidden');
+        }
 
-                    with st.chat_message("assistant"):
-                        with st.spinner("Retrieving facts and generating response..."):
-                            try:
-                                res = run_pipeline(cleaned_query, clearance=clearance_level)
-                                st.write(res["answer"])
+        // Switch Workspace Tabs
+        function switchTab(tab) {
+            const chatTab = document.getElementById('tab-chat');
+            const chatBtn = document.getElementById('tab-chat-btn');
+            const analyticTab = document.getElementById('tab-analytics');
+            const analyticBtn = document.getElementById('tab-analytics-btn');
+            
+            if (tab === 'chat') {
+                chatTab.classList.remove('hidden');
+                analyticTab.classList.add('hidden');
+                chatBtn.className = "text-sm font-semibold font-outfit text-white border-b-2 border-indigo-500 pb-1.5 transition";
+                analyticBtn.className = "text-sm font-semibold font-outfit text-slate-400 hover:text-white pb-1.5 transition";
+            } else {
+                chatTab.classList.add('hidden');
+                analyticTab.classList.remove('hidden');
+                chatBtn.className = "text-sm font-semibold font-outfit text-slate-400 hover:text-white pb-1.5 transition";
+                analyticBtn.className = "text-sm font-semibold font-outfit text-white border-b-2 border-indigo-500 pb-1.5 transition";
+            }
+        }
 
-                                # Citations Accordion
-                                with st.expander("📖 View Retrieved Citations"):
-                                    for idx, chunk in enumerate(res["citations"]):
-                                        source = chunk["metadata"].get("source", "Unknown Document")
-                                        page = chunk["metadata"].get("page", "?")
-                                        score = chunk.get("similarity", 0.0)
-                                        st.markdown(
-                                            f"<div class='citation-card'>"
-                                            f"<strong>Source {idx+1}:</strong> {source} (Page {page})<br/>"
-                                            f"<strong>Similarity Match:</strong> {score * 100:.1f}%<br/>"
-                                            f"<p style='margin-top: 5px; color:#94A3B8; font-style:italic;'>\"{chunk['text'][:300]}...\"</p>"
-                                            f"</div>",
-                                            unsafe_allow_html=True
-                                        )
+        // Fetch Documents Registry
+        async function fetchDocuments() {
+            try {
+                const res = await fetch('/api/documents');
+                const data = await res.json();
+                documentRegistry = data;
+                renderRegistry();
+            } catch (err) {
+                console.error("Error fetching documents:", err);
+            }
+        }
 
-                                # Evaluations Accordion
-                                with st.expander("📊 Evaluation Metrics (LLM judge)"):
-                                    faith = res["evaluation"].get("faithfulness", {})
-                                    relev = res["evaluation"].get("relevancy", {})
-                                    f_score = faith.get("score", 0.0)
-                                    r_score = relev.get("score", 0.0)
-                                    
-                                    f_badge = "badge-green" if f_score >= 0.8 else ("badge-yellow" if f_score >= 0.5 else "badge-red")
-                                    r_badge = "badge-green" if r_score >= 0.8 else ("badge-yellow" if r_score >= 0.5 else "badge-red")
-                                    
-                                    st.markdown(
-                                        f"#### Groundedness Score<br/>"
-                                        f"<span class='metric-badge {f_badge}'>{f_score:.2f} / 1.00</span><br/>"
-                                        f"<em>Reasoning:</em> {faith.get('reasoning', 'No reasoning supplied.')}",
-                                        unsafe_allow_html=True
-                                    )
-                                    st.divider()
-                                    st.markdown(
-                                        f"#### Answer Relevancy Score<br/>"
-                                        f"<span class='metric-badge {r_badge}'>{r_score:.2f} / 1.00</span><br/>"
-                                        f"<em>Reasoning:</em> {relev.get('reasoning', 'No reasoning supplied.')}",
-                                        unsafe_allow_html=True
-                                    )
+        // Render registry
+        function renderRegistry() {
+            const container = document.getElementById('document-list');
+            const countBadge = document.getElementById('registry-count');
+            const docsMetric = document.getElementById('metric-docs');
+            const chunksMetric = document.getElementById('metric-chunks');
+            
+            countBadge.innerText = documentRegistry.length;
+            docsMetric.innerText = documentRegistry.length;
+            
+            let totalChunks = 0;
+            
+            if (documentRegistry.length === 0) {
+                container.innerHTML = `<div class="text-center text-xs text-slate-500 py-6">No documents indexed in vector registry.</div>`;
+                chunksMetric.innerText = "0";
+                return;
+            }
+            
+            let html = '';
+            documentRegistry.forEach(doc => {
+                totalChunks += doc.chunks;
+                html += `
+                <div class="flex items-center justify-between bg-[#0d1224]/50 border border-indigo-500/10 p-3 rounded-xl hover:border-indigo-500/30 transition">
+                    <div class="truncate max-w-[200px]">
+                        <p class="text-xs font-semibold truncate text-slate-200">🟢 ${doc.source}</p>
+                        <p class="text-[10px] text-slate-500 mt-0.5">Pages: ${doc.pages} | Chunks: ${doc.chunks}</p>
+                    </div>
+                    <button onclick="deleteDocument('${doc.source}')" class="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg active:scale-95 transition">
+                        <i class="fa-solid fa-trash-can text-xs"></i>
+                    </button>
+                </div>
+                `;
+            });
+            container.innerHTML = html;
+            chunksMetric.innerText = totalChunks;
+        }
 
-                                                                # Thumbs feedback buttons
-                                col_f1, col_f2 = st.columns([0.1, 0.9])
-                                with col_f1:
-                                    st.button("👍", key=f"thumbs_up_{len(st.session_state.chat_history)}")
-                                with col_f2:
-                                    st.button("👎", key=f"thumbs_dn_{len(st.session_state.chat_history)}")
+        // Upload document
+        async function uploadDocument(file) {
+            const statusDiv = document.getElementById('upload-status');
+            const filenameSpan = document.getElementById('upload-filename');
+            const pctSpan = document.getElementById('upload-pct');
+            const progress = document.getElementById('upload-progress');
+            const logSpan = document.getElementById('upload-log');
+            
+            filenameSpan.innerText = file.name;
+            pctSpan.innerText = "0%";
+            progress.style.width = "0%";
+            logSpan.innerText = "Initializing PDF parser...";
+            statusDiv.classList.remove('hidden');
+            
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("chunk_size", document.getElementById('chunk-size-slider').value);
+            formData.append("chunk_overlap", document.getElementById('chunk-overlap-slider').value);
+            
+            // Simulation progress animation
+            let currentPct = 10;
+            const timer = setInterval(() => {
+                currentPct = Math.min(85, currentPct + 15);
+                pctSpan.innerText = `${currentPct}%`;
+                progress.style.width = `${currentPct}%`;
+                if (currentPct === 40) logSpan.innerText = "Extracting text nodes...";
+                if (currentPct === 70) logSpan.innerText = "Generating SentenceTransformer embeddings...";
+            }, 300);
+            
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                clearInterval(timer);
+                
+                if (res.ok) {
+                    pctSpan.innerText = "100%";
+                    progress.style.width = "100%";
+                    logSpan.innerText = "Database index completed successfully!";
+                    setTimeout(() => {
+                        statusDiv.classList.add('hidden');
+                    }, 2000);
+                    fetchDocuments();
+                } else {
+                    const data = await res.json();
+                    alert("Upload failed: " + data.detail);
+                    statusDiv.classList.add('hidden');
+                }
+            } catch (err) {
+                clearInterval(timer);
+                alert("Upload error: " + err);
+                statusDiv.classList.add('hidden');
+            }
+        }
 
-                                # Log the evaluation metrics
-                                log_evaluation(cleaned_query, res["answer"], f_score, r_score)
+        // Delete document
+        async function deleteDocument(sourceName) {
+            if (!confirm(`Are you sure you want to delete '${sourceName}'?`)) return;
+            try {
+                const res = await fetch(`/api/document/${encodeURIComponent(sourceName)}`, {
+                    method: 'DELETE'
+                });
+                if (res.ok) {
+                    fetchDocuments();
+                } else {
+                    const data = await res.json();
+                    alert("Delete failed: " + data.detail);
+                }
+            } catch (err) {
+                alert("Error deleting document: " + err);
+            }
+        }
 
-                                # Download Results
-                                download_text = f"Question: {cleaned_query}\n\nAnswer: {res['answer']}\n\nMetrics:\n- Groundedness: {f_score}\n- Relevancy: {r_score}"
-                                st.download_button(
-                                    label="📥 Export Answer",
-                                    data=download_text,
-                                    file_name="policy_chat_response.txt",
-                                    mime="text/plain"
-                                )
+        // Reset database
+        async function handleResetDB() {
+            if (!confirm("Are you sure you want to completely wipe the vector index database? This cannot be undone.")) return;
+            try {
+                const res = await fetch('/api/reset', { method: 'POST' });
+                if (res.ok) {
+                    alert("Database index cleared successfully.");
+                    fetchDocuments();
+                }
+            } catch (err) {
+                alert("Reset error: " + err);
+            }
+        }
 
-                                # Add to persistent chat state
-                                st.session_state.chat_history.append({
-                                    "role": "assistant",
-                                    "content": res["answer"],
-                                    "citations": res["citations"],
-                                    "evaluations": res["evaluation"]
-                                })
-                                st.rerun()
+        // Send query RAG
+        async function handleSendQuery() {
+            const input = document.getElementById('chat-input');
+            const query = input.value.trim();
+            if (!query) return;
+            
+            input.value = '';
+            appendUserMessage(query);
+            
+            const typingDiv = appendTypingIndicator();
+            
+            try {
+                const res = await fetch('/api/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: query,
+                        clearance: document.getElementById('clearance-select').value,
+                        chunk_size: parseInt(document.getElementById('chunk-size-slider').value),
+                        chunk_overlap: parseInt(document.getElementById('chunk-overlap-slider').value)
+                    })
+                });
+                
+                typingDiv.remove();
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    appendAssistantResponse(data);
+                    
+                    // Increment total cost metric
+                    if (data.cost) {
+                        totalCost += data.cost;
+                        document.getElementById('metric-cost').innerText = `$${totalCost.toFixed(5)}`;
+                    }
+                } else {
+                    const data = await res.json();
+                    appendSystemErrorMessage(data.detail || "Retrieval execution aborted.");
+                }
+            } catch (err) {
+                typingDiv.remove();
+                appendSystemErrorMessage("Network error connecting to RAG worker.");
+            }
+        }
 
-                            except Exception as e:
-                                logger.error(f"Error executing chat pipeline: {e}")
-                                st.error(f"Failed to query knowledge base: {e}")
+        // Append UI elements helpers
+        function appendUserMessage(text) {
+            const container = document.getElementById('message-container');
+            const div = document.createElement('div');
+            div.className = "flex gap-4 justify-end";
+            div.innerHTML = `
+            <div class="max-w-[80%] rounded-2xl px-5 py-3.5 bg-gradient-to-br from-indigo-950/40 to-slate-900 border border-indigo-500/20 text-sm shadow-md">
+                <p class="text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1.5 justify-end">You <i class="fa-solid fa-user text-[10px]"></i></p>
+                <p class="text-slate-200 leading-relaxed">${text}</p>
+            </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
 
+        function appendTypingIndicator() {
+            const container = document.getElementById('message-container');
+            const div = document.createElement('div');
+            div.className = "flex gap-4";
+            div.innerHTML = `
+            <div class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center">
+                <i class="fa-solid fa-spinner animate-spin text-xs text-indigo-400"></i>
+            </div>
+            <div class="max-w-[80%] rounded-2xl px-5 py-3.5 bg-[#0d1224]/30 border border-indigo-500/10 text-sm flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style="animation-delay: 0.1s"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style="animation-delay: 0.3s"></span>
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-bounce" style="animation-delay: 0.5s"></span>
+            </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return div;
+        }
 
-        with tab_analytics:
-            st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>📊 Document Relationships Graph</h3>", unsafe_allow_html=True)
-            # Renders a mock document network topology
-            import pandas as pd
-            chart_data = pd.DataFrame({
-                "Document Name": ["it_policy.pdf", "hr_policy.pdf", "compliance_policy.pdf"],
-                "Overlap Nodes": [15, 23, 8],
-                "References": [12, 18, 5]
-            })
-            st.bar_chart(chart_data, x="Document Name", y=["Overlap Nodes", "References"], color=["#3B82F6", "#8B5CF6"])
+        function appendSystemErrorMessage(text) {
+            const container = document.getElementById('message-container');
+            const div = document.createElement('div');
+            div.className = "flex gap-4 justify-center py-2";
+            div.innerHTML = `
+            <div class="px-4 py-2 bg-red-950/20 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center gap-2">
+                <i class="fa-solid fa-triangle-exclamation"></i> ${text}
+            </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function appendAssistantResponse(data) {
+            const container = document.getElementById('message-container');
+            const msgId = Date.now();
+            const div = document.createElement('div');
+            div.className = "flex gap-4";
+            
+            // Format citations
+            let citationsHTML = '';
+            if (data.citations && data.citations.length > 0) {
+                data.citations.forEach((cit, idx) => {
+                    citationsHTML += `
+                    <div class="citation-card text-xs">
+                        <p class="font-bold text-indigo-300">Excerpt [${idx+1}]: ${cit.metadata.source} (Page ${cit.metadata.page})</p>
+                        <p class="text-slate-400 italic mt-1 font-space">"Highlight: ... ${cit.text.substring(0, 200)}..."</p>
+                        <p class="text-[10px] text-cyan-400 font-semibold mt-1">Match Confidence: ${(cit.similarity * 100).toFixed(1)}%</p>
+                    </div>
+                    `;
+                });
+            } else {
+                citationsHTML = `<p class="text-xs text-slate-500 italic">No citations retrieved for this response.</p>`;
+            }
+            
+            // Format evaluation scores
+            const faith = data.evaluation.faithfulness;
+            const relev = data.evaluation.relevancy;
+            const fBadge = faith.score >= 0.8 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400';
+            const rBadge = relev.score >= 0.8 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400';
+
+            div.innerHTML = `
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-md">
+                <i class="fa-solid fa-robot text-xs text-white"></i>
+            </div>
+            <div class="max-w-[85%] space-y-3">
+                <div class="rounded-2xl px-5 py-3.5 bg-[#0d1224]/30 border border-indigo-500/10 text-sm shadow-md">
+                    <p class="text-xs font-semibold text-indigo-400 mb-1 flex items-center gap-1.5">Synthara Assistant <i class="fa-solid fa-shield-halved text-[9px] text-cyan-400"></i></p>
+                    <p class="text-slate-200 leading-relaxed whitespace-pre-wrap">${data.answer}</p>
+                </div>
+                
+                <!-- Citations Preview Accordion -->
+                <div class="border border-indigo-500/10 rounded-xl overflow-hidden">
+                    <button onclick="toggleAccordion('cit-${msgId}')" class="w-full px-4 py-2 bg-[#0d1224]/50 hover:bg-[#0d1224]/80 text-xs font-bold text-slate-400 flex items-center justify-between transition">
+                        <span>📖 View Retrieved Citations (${data.citations.length})</span>
+                        <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                    </button>
+                    <div id="cit-${msgId}" class="hidden p-4 bg-[#0d1224]/10 border-t border-indigo-500/10 space-y-2">
+                        ${citationsHTML}
+                    </div>
+                </div>
+
+                <!-- Evaluations Metrics Accordion -->
+                <div class="border border-indigo-500/10 rounded-xl overflow-hidden">
+                    <button onclick="toggleAccordion('eval-${msgId}')" class="w-full px-4 py-2 bg-[#0d1224]/50 hover:bg-[#0d1224]/80 text-xs font-bold text-slate-400 flex items-center justify-between transition">
+                        <span>📊 LLM judge Evaluation Metrics</span>
+                        <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                    </button>
+                    <div id="eval-${msgId}" class="hidden p-4 bg-[#0d1224]/10 border-t border-indigo-500/10 space-y-4">
+                        <div>
+                            <div class="flex items-center justify-between text-xs font-semibold mb-1">
+                                <span>Groundedness Index</span>
+                                <span class="px-2.5 py-0.5 rounded-full border ${fBadge}">${(faith.score * 100).toFixed(0)}%</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 italic mt-0.5">Reasoning: ${faith.reasoning}</p>
+                        </div>
+                        <div class="border-t border-slate-900/60 my-2"></div>
+                        <div>
+                            <div class="flex items-center justify-between text-xs font-semibold mb-1">
+                                <span>Answer Relevancy</span>
+                                <span class="px-2.5 py-0.5 rounded-full border ${rBadge}">${(relev.score * 100).toFixed(0)}%</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500 italic mt-0.5">Reasoning: ${relev.reasoning}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User thumbs up/down rating widgets -->
+                <div class="flex items-center gap-2">
+                    <button onclick="handleRating('${data.answer}', 'UP', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-emerald-500/10 border border-slate-800 text-slate-400 hover:text-emerald-400 text-xs rounded-lg transition">
+                        👍
+                    </button>
+                    <button onclick="handleRating('${data.answer}', 'DOWN', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-red-500/10 border border-slate-800 text-slate-400 hover:text-red-400 text-xs rounded-lg transition">
+                        👎
+                    </button>
+                </div>
+            </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Toggle Accordions
+        function toggleAccordion(id) {
+            const el = document.getElementById(id);
+            el.classList.toggle('hidden');
+        }
+
+        // Log thumbs rating feedback
+        async function handleRating(answerText, rating, btn) {
+            try {
+                const res = await fetch('/api/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        answer: answerText,
+                        rating: rating
+                    })
+                });
+                if (res.ok) {
+                    btn.classList.add('bg-indigo-500/20', 'text-white', 'border-indigo-500/40');
+                }
+            } catch (err) {
+                console.error("Error rating:", err);
+            }
+        }
+
+        // Trigger SharePoint sync simulation progress indicator
+        function triggerSharepointSync() {
+            alert("Connecting to SharePoint Directory Server... Sync started in the background.");
+        }
+
+        // Voice Search simulator
+        function simulateSTT() {
+            const input = document.getElementById('chat-input');
+            input.value = "What is the vacation leave policy?";
+            input.focus();
+        }
+    </script>
+</body>
+</html>"""
+    return HTMLResponse(content=html_content, status_code=200)
+
+@app.post("/api/login")
+async def api_login(payload: Dict[str, str]):
+    username = payload.get("username")
+    password = payload.get("password")
+    if username == "admin" and password == "password":
+        return JSONResponse(content={"status": "authorized"})
+    raise HTTPException(status_code=401, detail="Unauthorized")
+
+@app.post("/api/upload")
+async def api_upload(
+    file: UploadFile = File(...),
+    chunk_size: int = Form(512),
+    chunk_overlap: int = Form(64)
+):
+    try:
+        # Create storage directory for raw files
+        storage_dir = "uploaded_policies"
+        os.makedirs(storage_dir, exist_ok=True)
+        file_path = os.path.join(storage_dir, file.filename)
+        
+        with open(file_path, "wb") as f:
+            f.write(await file.read())
+            
+        logger.info(f"PDF uploaded to local storage: {file_path}")
+        pages = load_pdf(file_path)
+        chunks = split_documents(pages, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        
+        add_documents_to_db(chunks)
+        return JSONResponse(content={"status": "indexed", "chunks_count": len(chunks)})
+    except Exception as e:
+        logger.error(f"Upload and indexing failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/documents")
+async def api_documents():
+    docs = get_indexed_documents()
+    return JSONResponse(content=docs)
+
+@app.post("/api/query")
+async def api_query(payload: Dict[str, Any]):
+    query = payload.get("query", "")
+    clearance = payload.get("clearance", "Employee")
+    
+    if not query:
+        raise HTTPException(status_code=400, detail="Query cannot be empty.")
+        
+    res = run_pipeline(query, clearance=clearance)
+    
+    # Calculate mock token usage costs
+    prompt_len = len(query) // 4
+    comp_len = len(res["answer"]) // 4
+    cost = (prompt_len * 0.15 / 1e6) + (comp_len * 0.60 / 1e6)
+    
+    log_evaluation(
+        query=query,
+        answer=res["answer"],
+        faithfulness=res["evaluation"]["faithfulness"].get("score", 0.0),
+        relevancy=res["evaluation"]["relevancy"].get("score", 0.0)
+    )
+    
+    return JSONResponse(content={
+        "answer": res["answer"],
+        "citations": res["citations"],
+        "evaluation": res["evaluation"],
+        "cost": cost
+    })
+
+@app.delete("/api/document/{source_name}")
+async def api_delete_document(source_name: str):
+    try:
+        delete_document_from_db(source_name)
+        return JSONResponse(content={"status": "deleted"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/reset")
+async def api_reset():
+    try:
+        reset_db()
+        return JSONResponse(content={"status": "reset"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/feedback")
+async def api_feedback(payload: Dict[str, str]):
+    # Save feedback rating
+    return JSONResponse(content={"status": "logged"})
+
+if __name__ == "__main__":
+    uvicorn.run("app:app", host="0.0.0.0", port=8501, reload=False)

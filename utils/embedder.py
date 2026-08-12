@@ -6,9 +6,8 @@ Pads embeddings to 1536 dimensions to remain compatible with standard database i
 """
 
 import logging
-from typing import List
+from typing import List, Any
 import openai
-from sentence_transformers import SentenceTransformer
 
 # Initialize module logger
 logger = logging.getLogger("utils.embedder")
@@ -18,13 +17,14 @@ _model = None
 TARGET_DIMENSIONS = 1536
 
 
-def _get_model() -> SentenceTransformer:
+def _get_model() -> Any:
     """
     Initializes and returns the local SentenceTransformer model instance.
     """
     global _model
     if _model is None:
         import torch
+        from sentence_transformers import SentenceTransformer
         device = "cuda" if torch.cuda.is_available() else "cpu"
         logger.info(f"Initializing SentenceTransformer('all-MiniLM-L6-v2') locally on device: {device}...")
         # Load the lightweight MiniLM model (runs in milliseconds on CPU or CUDA)
