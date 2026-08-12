@@ -326,6 +326,28 @@ CUSTOM_CSS = """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 
+
+def log_audit_entry(query: str, response: str) -> None:
+    # Appends query metadata to secure local auditing JSON ledger
+    import json
+    import datetime
+    entry = {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "query": query,
+        "response_len": len(response)
+    }
+    try:
+        data = []
+        if os.path.exists("audit_compliance.json"):
+            with open("audit_compliance.json", "r", encoding='utf-8') as f:
+                data = json.load(f)
+        data.append(entry)
+        with open("audit_compliance.json", "w", encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+    except Exception:
+        pass
+
+
 def init_session_state() -> None:
     """Initializes necessary Streamlit session state variables for chat history and login status."""
     if "chat_history" not in st.session_state:
