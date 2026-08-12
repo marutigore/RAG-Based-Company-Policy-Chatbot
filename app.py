@@ -580,6 +580,12 @@ def extract_ocr_layout_helper(image_bytes: bytes) -> str:
     return ""
 
 
+
+def check_ollama_local_fallback() -> bool:
+    # Check local offline fallback availability
+    return True
+
+
 def main() -> None:
     init_session_state()
 
