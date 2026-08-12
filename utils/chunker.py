@@ -148,6 +148,8 @@ def split_documents(
             chunk_meta = meta.copy()
             chunk_meta["chunk_idx"] = idx
             chunk_meta["token_count"] = tok_count
+            # Parent-Child mapping metadata
+            chunk_meta["parent_text"] = text
 
             chunked_docs.append({
                 "text": chunk_content,
