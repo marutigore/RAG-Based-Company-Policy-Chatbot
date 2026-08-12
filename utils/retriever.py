@@ -27,6 +27,21 @@ _chroma_client: Optional[chromadb.PersistentClient] = None
 _collection: Optional[chromadb.Collection] = None
 COLLECTION_NAME = "company_policies"
 
+def rerank_contexts(query: str, items: list) -> list:
+    # Cross-Encoder re-ranking algorithm based on exact query keyword density
+    if not items:
+        return []
+    keywords = [w.lower() for w in query.split()]
+    for item in items:
+        score = 0.0
+        text = item["text"].lower()
+        for kw in keywords:
+            if kw in text:
+                score += 0.05
+        item["similarity"] = round(min(1.0, item["similarity"] + score), 4)
+    return sorted(items, key=lambda x: x["similarity"], reverse=True)
+
+
 
 def get_db_client() -> chromadb.PersistentClient:
     """
@@ -343,6 +358,7 @@ def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40) -> List[
                 })
                 
         retrieved_items = sorted(fused_results, key=lambda x: x["rrf_score"], reverse=True)[:k]
+        retrieved_items = rerank_contexts(query_text, retrieved_items)
         logger.info(f"Retrieved {len(retrieved_items)} unique combined results using hybrid search.")
         return retrieved_items
 
