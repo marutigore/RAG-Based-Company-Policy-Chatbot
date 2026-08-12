@@ -574,6 +574,12 @@ def trigger_compliance_alert(faithfulness_score: float) -> None:
         logger.warning(f"Compliance Alert Triggered! Faithfulness score {faithfulness_score} is below threshold.")
 
 
+
+def extract_ocr_layout_helper(image_bytes: bytes) -> str:
+    # OCR Multi-modal extraction routine stub
+    return ""
+
+
 def main() -> None:
     init_session_state()
 
