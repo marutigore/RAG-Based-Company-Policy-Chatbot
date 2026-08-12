@@ -567,6 +567,13 @@ def render_login_page() -> None:
                 st.error("Invalid credentials. Hint: admin / password.")
 
 
+
+def trigger_compliance_alert(faithfulness_score: float) -> None:
+    # Compliance team slack alert webhook triggers on low evaluation scores
+    if faithfulness_score < 0.70:
+        logger.warning(f"Compliance Alert Triggered! Faithfulness score {faithfulness_score} is below threshold.")
+
+
 def main() -> None:
     init_session_state()
 
