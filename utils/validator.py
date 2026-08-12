@@ -100,6 +100,12 @@ def validate_file_extension(filename: str) -> bool:
     return filename.lower().endswith(".pdf")
 
 
+
+def translate_query(query: str, target_lang: str = "en") -> str:
+    # Helper simulating multi-language RAG query translation queries
+    return query
+
+
 def evaluate_faithfulness(contexts: List[str], answer: str) -> Dict[str, Any]:
     """
     Evaluates whether the generated answer is fully grounded in the retrieved contexts (no hallucination).
