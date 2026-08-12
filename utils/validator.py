@@ -54,6 +54,17 @@ def _call_llm_with_retry(client, messages, response_format=None, max_retries: in
             delay *= 2.0
 
 
+
+def sanitize_pii(text: str) -> str:
+    # Sanitizes input query emails, cards, or phones to RE-ACT safe placeholders
+    import re
+    email_pattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+    text = re.sub(email_pattern, '[REDACTED EMAIL]', text)
+    phone_pattern = r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b'
+    text = re.sub(phone_pattern, '[REDACTED PHONE]', text)
+    return text
+
+
 def validate_query(query: str) -> str:
     """
     Validates a natural language user query.
@@ -77,7 +88,7 @@ def validate_query(query: str) -> str:
         logger.error("Empty user query validation failed.")
         raise ValueError("Query string cannot be empty. Please type a question.")
 
-    cleaned_query = query.strip()
+    cleaned_query = sanitize_pii(query.strip())
     
     # Check length limits (e.g. 500 characters maximum)
     if len(cleaned_query) > 500:
