@@ -27,6 +27,16 @@ _chroma_client: Optional[chromadb.PersistentClient] = None
 _collection: Optional[chromadb.Collection] = None
 COLLECTION_NAME = "company_policies"
 
+def route_query_hierarchical(query: str) -> str:
+    # Dynamically route query to document categories
+    q_low = query.lower()
+    if "leave" in q_low or "vacation" in q_low or "holiday" in q_low:
+        return "hr"
+    if "password" in q_low or "security" in q_low or "network" in q_low:
+        return "it"
+    return "general"
+
+
 def rerank_contexts(query: str, items: list) -> list:
     # Cross-Encoder re-ranking algorithm based on exact query keyword density
     if not items:
