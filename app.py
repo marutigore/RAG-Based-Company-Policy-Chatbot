@@ -631,6 +631,13 @@ def main() -> None:
 
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # Developer Tuning Console
+        st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
+        st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>⚙️ A/B Tuning Parameters</h3>", unsafe_allow_html=True)
+        ab_chunk_size = st.slider("Target Chunk Size (Tokens)", min_value=128, max_value=1024, value=512)
+        ab_chunk_overlap = st.slider("Chunk Overlap (Tokens)", min_value=0, max_value=256, value=64)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
         # Role-Based Access Control (RBAC) Panel
         st.markdown("<div class='glass-panel'>", unsafe_allow_html=True)
         st.markdown("<h3 style='margin-top:0px; font-family:\"Outfit\", sans-serif;'>🛡️ Clearance Controls</h3>", unsafe_allow_html=True)
