@@ -339,6 +339,10 @@ def init_session_state() -> None:
             st.session_state.db_initialized = False
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
+    if "total_tokens" not in st.session_state:
+        st.session_state.total_tokens = 0
+    if "total_cost" not in st.session_state:
+        st.session_state.total_cost = 0.0
 
 
 def get_indexed_documents() -> List[Dict[str, Any]]:
@@ -442,14 +446,19 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
         f"Grounded Response:"
     )
 
+    # Build messages list incorporating chat memory
+    messages = [{"role": "system", "content": system_prompt}]
+    if "chat_history" in st.session_state and st.session_state.chat_history:
+        recent_history = st.session_state.chat_history[-4:]
+        for msg in recent_history:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": user_prompt})
+
     try:
         logger.info(f"Calling LLM ({config.LLM_MODEL}) chat completion...")
         response = client.chat.completions.create(
             model=config.LLM_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            messages=messages,
             temperature=0.0
         )
         return response.choices[0].message.content or ""
