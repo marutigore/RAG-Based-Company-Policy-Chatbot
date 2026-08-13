@@ -189,6 +189,16 @@ async def serve_portal():
         .glass-panel {
             background: rgba(13, 18, 36, 0.45);
         }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .skeleton {
+            background: linear-gradient(90deg, rgba(22, 28, 45, 0.5) 25%, rgba(99, 102, 241, 0.1) 37%, rgba(22, 28, 45, 0.5) 63%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        }
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             20%, 60% { transform: translateX(-6px); }
@@ -319,12 +329,12 @@ async def serve_portal():
             <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-indigo-500/30 transition duration-300">
                 <div class="absolute bottom-0 left-0 w-full h-[2px] bg-indigo-500/50"></div>
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Document Registry</p>
-                <h3 id="metric-docs" class="text-3xl font-extrabold font-space mt-2 bg-gradient-to-r from-indigo-300 to-slate-200 bg-clip-text text-transparent">0</h3>
+                <h3 id="metric-docs" class="text-3xl font-extrabold font-space mt-2 bg-gradient-to-r from-indigo-300 to-slate-200 bg-clip-text text-transparent skeleton w-12 h-8 rounded animate-pulse"></h3>
             </div>
             <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-purple-500/30 transition duration-300">
                 <div class="absolute bottom-0 left-0 w-full h-[2px] bg-purple-500/50"></div>
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Knowledge Nodes</p>
-                <h3 id="metric-chunks" class="text-3xl font-extrabold font-space mt-2 bg-gradient-to-r from-purple-300 to-slate-200 bg-clip-text text-transparent">0</h3>
+                <h3 id="metric-chunks" class="text-3xl font-extrabold font-space mt-2 bg-gradient-to-r from-purple-300 to-slate-200 bg-clip-text text-transparent skeleton w-16 h-8 rounded animate-pulse"></h3>
             </div>
             <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-emerald-500/30 transition duration-300">
                 <div class="absolute bottom-0 left-0 w-full h-[2px] bg-emerald-500/50"></div>
@@ -889,6 +899,7 @@ async def serve_portal():
             
             countBadge.innerText = documentRegistry.length;
             docsMetric.innerText = documentRegistry.length;
+            docsMetric.classList.remove("skeleton", "animate-pulse");
             
             let totalChunks = 0;
             
@@ -915,6 +926,7 @@ async def serve_portal():
             });
             container.innerHTML = html;
             chunksMetric.innerText = totalChunks;
+            chunksMetric.classList.remove("skeleton", "animate-pulse");
         }
 
         // Upload document
