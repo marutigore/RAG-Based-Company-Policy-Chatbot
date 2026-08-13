@@ -365,6 +365,13 @@ async def serve_portal():
                             <div id="upload-progress" class="bg-gradient-to-r from-indigo-500 to-cyan-400 h-1.5 w-0 transition-all duration-300"></div>
                         </div>
                         <p id="upload-log" class="text-[10px] text-slate-500 italic mt-1"></p>
+                        <div id="upload-stepper" class="grid grid-cols-5 gap-1 mt-3 text-center">
+                            <span id="step-loader-1" class="text-[8px] py-1 bg-slate-900 border border-slate-800 text-slate-500 rounded">Parse</span>
+                            <span id="step-loader-2" class="text-[8px] py-1 bg-slate-900 border border-slate-800 text-slate-500 rounded">Split</span>
+                            <span id="step-loader-3" class="text-[8px] py-1 bg-slate-900 border border-slate-800 text-slate-500 rounded">Embed</span>
+                            <span id="step-loader-4" class="text-[8px] py-1 bg-slate-900 border border-slate-800 text-slate-500 rounded">Index</span>
+                            <span id="step-loader-5" class="text-[8px] py-1 bg-slate-900 border border-slate-800 text-slate-500 rounded">Audit</span>
+                        </div>
                     </div>
                 </div>
 
@@ -820,7 +827,10 @@ async def serve_portal():
                 currentPct = Math.min(85, currentPct + 15);
                 pctSpan.innerText = `${currentPct}%`;
                 progress.style.width = `${currentPct}%`;
-                if (currentPct === 40) logSpan.innerText = "Extracting text nodes...";
+                if (currentPct === 40) { logSpan.innerText = "Extracting text nodes..."; document.getElementById("step-loader-1").className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; }
+                if (currentPct === 55) { document.getElementById("step-loader-2").className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; }
+                if (currentPct === 70) { logSpan.innerText = "Generating SentenceTransformer embeddings..."; document.getElementById("step-loader-3").className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; }
+                if (currentPct === 85) { document.getElementById("step-loader-4").className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; }
                 if (currentPct === 70) logSpan.innerText = "Generating SentenceTransformer embeddings...";
             }, 300);
             
@@ -832,7 +842,7 @@ async def serve_portal():
                 clearInterval(timer);
                 
                 if (res.ok) {
-                    pctSpan.innerText = "100%";
+                    pctSpan.innerText = "100%"; document.getElementById("step-loader-5").className = "text-[8px] py-1 bg-emerald-500/10 border-emerald-500/30 text-emerald-400 rounded font-semibold";
                     progress.style.width = "100%";
                     logSpan.innerText = "Database index completed successfully!";
                     setTimeout(() => {
