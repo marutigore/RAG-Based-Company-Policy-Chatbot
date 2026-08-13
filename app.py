@@ -404,7 +404,7 @@ async def serve_portal():
                     <div>
                         <div class="flex items-center justify-between text-xs font-medium mb-1.5">
                             <span class="text-slate-400">Role-Based Access (RBAC)</span>
-                            <span id="rbac-val" class="font-bold text-indigo-400">Employee</span>
+                            <span id="rbac-val" class="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping"></span> Employee</span>
                         </div>
                         <select id="clearance-select" class="w-full bg-[#0d1224] border border-indigo-500/10 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition">
                             <option value="Employee">Employee (Public Policies)</option>
@@ -753,7 +753,9 @@ async def serve_portal():
             document.getElementById('chunk-overlap-val').innerText = e.target.value;
         });
         document.getElementById('clearance-select').addEventListener('change', (e) => {
-            document.getElementById('rbac-val').innerText = e.target.value;
+            const colors = {Employee: "indigo", Manager: "purple", "Compliance Officer": "pink"};
+            const c = colors[e.target.value] || "indigo";
+            document.getElementById("rbac-val").innerHTML = `<span class="px-2 py-0.5 rounded bg-${c}-500/10 border border-${c}-500/30 text-${c}-400 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-${c}-400 animate-ping"></span> ${e.target.value}</span>`;
         });
 
         // Trigger manual browse file click
