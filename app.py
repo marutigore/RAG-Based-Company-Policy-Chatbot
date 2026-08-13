@@ -322,7 +322,12 @@ async def serve_portal():
             <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-pink-500/30 transition duration-300">
                 <div class="absolute bottom-0 left-0 w-full h-[2px] bg-pink-500/50"></div>
                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Workspace Cost</p>
-                <h3 id="metric-cost" class="text-3xl font-extrabold font-space mt-2 bg-gradient-to-r from-pink-300 to-slate-200 bg-clip-text text-transparent">$0.00000</h3>
+                <div class="flex items-center gap-3 mt-2">
+                    <h3 id="metric-cost" class="text-2xl font-extrabold font-space bg-gradient-to-r from-pink-300 to-slate-200 bg-clip-text text-transparent">$0.00000</h3>
+                    <div class="w-12 bg-slate-900 h-1.5 rounded-full overflow-hidden border border-slate-800 flex-grow">
+                        <div id="cost-progress-bar" class="bg-pink-500 h-1.5 w-0 transition-all duration-300"></div>
+                    </div>
+                </div>
             </div>
             <div class="glass-panel p-5 rounded-2xl relative overflow-hidden group hover:border-cyan-500/30 transition duration-300">
                 <div class="absolute bottom-0 left-0 w-full h-[2px] bg-cyan-500/50"></div>
@@ -853,7 +858,9 @@ async def serve_portal():
                     // Increment total cost metric
                     if (data.cost) {
                         totalCost += data.cost;
-                        document.getElementById('metric-cost').innerText = `$${totalCost.toFixed(5)}`;
+                        document.getElementById("metric-cost").innerText = `$${totalCost.toFixed(5)}`;
+                        const costPct = Math.min(100, (totalCost / 0.10) * 100);
+                        document.getElementById("cost-progress-bar").style.width = `${costPct}%`;
                     }
                 } else {
                     const data = await res.json();
