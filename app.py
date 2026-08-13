@@ -677,6 +677,30 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        function closeResetModal() {
+            document.getElementById("reset-modal").classList.add("hidden");
+            document.getElementById("reset-confirm-input").value = "";
+        }
+        function handleResetDB() {
+            document.getElementById("reset-modal").classList.remove("hidden");
+        }
+        async function submitResetDB() {
+            const val = document.getElementById("reset-confirm-input").value.trim();
+            if (val !== "RESET") {
+                showToast("Reset cancelled: confirmation typed incorrectly.", true);
+                return;
+            }
+            try {
+                const res = await fetch("/api/reset", { method: "POST" });
+                if (res.ok) {
+                    showToast("Database registry cleared.");
+                    closeResetModal();
+                    fetchDocuments();
+                }
+            } catch (err) {
+                showToast("Reset failed.", true);
+            }
+        }
         function showToast(message, isError=false) {
             const container = document.getElementById("toast-container");
             const toast = document.createElement("div");
@@ -1396,6 +1420,19 @@ async def serve_portal():
     </div>
     <!-- Action Toast container -->
     <div id="toast-container" class="fixed top-6 right-6 z-50 flex flex-col gap-2"></div>
+    <!-- DB Reset confirmation modal overlay -->
+    <div id="reset-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/85 backdrop-blur-sm p-4">
+        <div class="glass-panel p-6 rounded-2xl w-full max-w-sm border border-red-500/20 shadow-2xl relative text-center">
+            <h3 class="text-md font-bold font-outfit text-red-400 mb-2">Confirm Database Reset</h3>
+            <p class="text-xs text-slate-400 mb-4">Wipes the ChromaDB collections. This cannot be undone.</p>
+            <p class="text-xs font-semibold text-slate-300 mb-2">Type "RESET" to confirm deletion:</p>
+            <input type="text" id="reset-confirm-input" class="w-full bg-[#0d1224] border border-red-500/20 rounded-xl px-3 py-2 text-xs text-center text-red-400 placeholder-slate-600 focus:outline-none mb-4" placeholder="RESET">
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="closeResetModal()" class="py-2 bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-800 transition">Cancel</button>
+                <button onclick="submitResetDB()" class="py-2 bg-red-650 hover:bg-red-600 bg-red-600 text-white text-xs font-semibold rounded-lg shadow-md transition">Reset Index</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>"""
     return HTMLResponse(content=html_content, status_code=200)
