@@ -627,6 +627,27 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        function exportAnswer(select, answer) {
+            const format = select.value;
+            if (!format) return;
+            let blob, filename;
+            if (format === "md") {
+                blob = new Blob([`# RAG Response\\n\\n${answer}`], {type: "text/markdown"});
+                filename = "policy_response.md";
+            } else if (format === "txt") {
+                blob = new Blob([answer], {type: "text/plain"});
+                filename = "policy_response.txt";
+            } else if (format === "json") {
+                blob = new Blob([JSON.stringify({response: answer, timestamp: new Date().toISOString()})], {type: "application/json"});
+                filename = "policy_response.json";
+            }
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            select.value = "";
+        }
         function toggleTuningSlider() {
             const sliders = document.getElementById("tuning-sliders-area");
             const chevron = document.getElementById("tuning-chevron");
@@ -1190,10 +1211,22 @@ async def serve_portal():
                 </div>
 
                 <!-- User thumbs up/down rating widgets -->
-                <div class="flex items-center gap-2">
-                    <button onclick="handleRating('${data.answer}', 'UP', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-emerald-500/10 border border-slate-800 text-slate-400 hover:text-emerald-400 text-xs rounded-lg transition">
-                        👍
-                    </button>
+                <div class="flex items-center justify-between w-full">
+                    <div class="flex items-center gap-2">
+                        <button onclick="handleRating('${data.answer}', 'UP', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-emerald-500/10 border border-slate-800 text-slate-400 hover:text-emerald-400 text-xs rounded-lg transition">
+                            👍
+                        </button>
+                        <button onclick="handleRating('${data.answer}', 'DOWN', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-red-500/10 border border-slate-800 text-slate-400 hover:text-red-400 text-xs rounded-lg transition">
+                            👎
+                        </button>
+                    </div>
+                    <select onchange="exportAnswer(this, `${data.answer}`)" class="bg-[#0d1224] border border-slate-800 text-slate-400 hover:text-white text-xs px-2 py-1.5 rounded-lg focus:outline-none transition cursor-pointer">
+                        <option value="">📥 Export answer...</option>
+                        <option value="md">Markdown (.md)</option>
+                        <option value="txt">Text File (.txt)</option>
+                        <option value="json">Raw JSON (.json)</option>
+                    </select>
+                </div>
                     <button onclick="openFeedbackDrawer('${data.answer}'); handleRating('${data.answer}', 'DOWN', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-red-500/10 border border-slate-800 text-slate-400 hover:text-red-400 text-xs rounded-lg transition">
                         👎
                     </button>
