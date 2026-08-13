@@ -674,7 +674,10 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <!-- UI Logics & API bindings JS -->
     <script>
-        const API_BASE = "http://localhost:8000";
+        const isStreamlitIframe = window.self !== window.top;
+        const API_BASE = isStreamlitIframe 
+            ? window.location.protocol + "//" + window.location.hostname + ":8000"
+            : "";
         let isLoggedIn = false;
         function closeResetModal() {
             document.getElementById("reset-modal").classList.add("hidden");
@@ -883,6 +886,20 @@ HTML_CONTENT = """<!DOCTYPE html>
             if (e.target.files.length > 0) {
                 uploadDocument(e.target.files[0]);
             }
+        });
+
+        // Login inputs event listeners
+        document.getElementById('username').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleLogin();
+        });
+        document.getElementById('password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleLogin();
+        });
+        document.getElementById('username').addEventListener('input', () => {
+            document.getElementById('login-error').classList.add('hidden');
+        });
+        document.getElementById('password').addEventListener('input', () => {
+            document.getElementById('login-error').classList.add('hidden');
         });
 
         // Login flow
