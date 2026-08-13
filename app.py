@@ -1007,21 +1007,33 @@ async def serve_portal():
                         <span>📊 LLM judge Evaluation Metrics</span>
                         <i class="fa-solid fa-chevron-down text-[10px]"></i>
                     </button>
-                    <div id="eval-${msgId}" class="hidden p-4 bg-[#0d1224]/10 border-t border-indigo-500/10 space-y-4">
-                        <div>
-                            <div class="flex items-center justify-between text-xs font-semibold mb-1">
-                                <span>Groundedness Index</span>
-                                <span class="px-2.5 py-0.5 rounded-full border ${fBadge}">${(faith.score * 100).toFixed(0)}%</span>
+                    <div id="eval-${msgId}" class="hidden p-4 bg-[#0d1224]/20 border-t border-indigo-500/10 space-y-4">
+                        <div class="flex gap-4 items-start">
+                            <div class="relative flex items-center justify-center">
+                                <svg class="w-12 h-12 transform -rotate-90">
+                                    <circle cx="24" cy="24" r="18" class="stroke-slate-800" stroke-width="3" fill="transparent"/>
+                                    <circle cx="24" cy="24" r="18" class="stroke-emerald-400" stroke-width="3" fill="transparent" stroke-dasharray="113" stroke-dashoffset="${113 - (113 * (faith.score || 0))}"/>
+                                </svg>
+                                <span class="absolute text-[10px] font-bold font-space text-slate-200">${((faith.score || 0) * 100).toFixed(0)}%</span>
                             </div>
-                            <p class="text-[10px] text-slate-500 italic mt-0.5">Reasoning: ${faith.reasoning}</p>
+                            <div class="flex-grow">
+                                <p class="text-xs font-semibold text-slate-200">Groundedness Index</p>
+                                <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">${faith.reasoning}</p>
+                            </div>
                         </div>
-                        <div class="border-t border-slate-900/60 my-2"></div>
-                        <div>
-                            <div class="flex items-center justify-between text-xs font-semibold mb-1">
-                                <span>Answer Relevancy</span>
-                                <span class="px-2.5 py-0.5 rounded-full border ${rBadge}">${(relev.score * 100).toFixed(0)}%</span>
+                        <div class="border-t border-indigo-950/60 my-1"></div>
+                        <div class="flex gap-4 items-start">
+                            <div class="relative flex items-center justify-center">
+                                <svg class="w-12 h-12 transform -rotate-90">
+                                    <circle cx="24" cy="24" r="18" class="stroke-slate-800" stroke-width="3" fill="transparent"/>
+                                    <circle cx="24" cy="24" r="18" class="stroke-cyan-400" stroke-width="3" fill="transparent" stroke-dasharray="113" stroke-dashoffset="${113 - (113 * (relev.score || 0))}"/>
+                                </svg>
+                                <span class="absolute text-[10px] font-bold font-space text-slate-200">${((relev.score || 0) * 100).toFixed(0)}%</span>
                             </div>
-                            <p class="text-[10px] text-slate-500 italic mt-0.5">Reasoning: ${relev.reasoning}</p>
+                            <div class="flex-grow">
+                                <p class="text-xs font-semibold text-slate-200">Answer Relevancy</p>
+                                <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">${relev.reasoning}</p>
+                            </div>
                         </div>
                     </div>
                 </div>
