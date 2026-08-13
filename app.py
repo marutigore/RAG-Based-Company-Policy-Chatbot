@@ -613,6 +613,37 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        function closeSyncModal() {
+            document.getElementById("sync-modal").classList.add("hidden");
+        }
+        function triggerSharepointSync() {
+            const modal = document.getElementById("sync-modal");
+            const term = document.getElementById("sync-terminal");
+            modal.classList.remove("hidden");
+            term.innerHTML = "<p>Connecting to Sharepoint server directory...</p>";
+            
+            const logs = [
+                "Resolving host name: corporate.sharepoint.com...",
+                "Authorization key approved.",
+                "Walking remote repository: /Policies/HumanResources/...",
+                "Found candidate document: hr_employee_leaves_2026.pdf",
+                "Found candidate document: remote_working_policies.pdf",
+                "Comparing modification hashes...",
+                "All policies are up-to-date with local vectors registry.",
+                "Sync completed successfully. Idle."
+            ];
+            
+            let idx = 0;
+            const timer = setInterval(() => {
+                if (idx < logs.length) {
+                    term.innerHTML += `<p>> ${logs[idx]}</p>`;
+                    term.scrollTop = term.scrollHeight;
+                    idx++;
+                } else {
+                    clearInterval(timer);
+                }
+            }, 400);
+        }
         window.onload = () => {
             const zone = document.getElementById("drop-zone");
             if (zone) {
@@ -1186,9 +1217,7 @@ async def serve_portal():
         }
 
         // Trigger SharePoint sync simulation progress indicator
-        function triggerSharepointSync() {
-            alert("Connecting to SharePoint Directory Server... Sync started in the background.");
-        }
+        
 
         // Voice Search simulator
         
@@ -1220,6 +1249,19 @@ async def serve_portal():
         <button onclick="submitDetailedFeedback()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-md transition active:scale-95">
             Submit Feedback
         </button>
+    </div>
+    <!-- SharePoint Sync Log Modal -->
+    <div id="sync-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/80 backdrop-blur-sm p-4">
+        <div class="glass-panel p-6 rounded-2xl w-full max-w-lg border border-indigo-500/20 shadow-2xl relative">
+            <button onclick="closeSyncModal()" class="absolute top-4 right-4 text-slate-500 hover:text-white transition">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 class="text-md font-bold font-outfit text-indigo-400 mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-arrows-spin animate-spin"></i> SharePoint Repository Synced
+            </h3>
+            <div id="sync-terminal" class="bg-[#070913] border border-indigo-500/15 p-4 rounded-xl max-h-[250px] overflow-y-auto font-space text-[10px] text-emerald-400 space-y-1">
+            </div>
+        </div>
     </div>
 </body>
 </html>"""
