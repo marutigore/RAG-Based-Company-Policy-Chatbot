@@ -628,6 +628,20 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        function showToast(message, isError=false) {
+            const container = document.getElementById("toast-container");
+            const toast = document.createElement("div");
+            toast.className = `glass-panel px-4 py-3 rounded-xl border ${isError ? "border-red-500/30 text-red-400 bg-red-950/20" : "border-emerald-500/30 text-emerald-400 bg-emerald-950/20"} shadow-xl flex items-center gap-2 transform translate-x-20 opacity-0 transition duration-300`;
+            toast.innerHTML = `<i class="fa-solid ${isError ? "fa-circle-exclamation" : "fa-circle-check"}"></i> <span class="text-xs font-semibold text-slate-200">${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove("translate-x-20", "opacity-0");
+            }, 10);
+            setTimeout(() => {
+                toast.classList.add("translate-x-20", "opacity-0");
+                setTimeout(() => { toast.remove(); }, 300);
+            }, 3000);
+        }
         function toggleTheme() {
             document.body.classList.toggle("light-theme");
         }
@@ -734,7 +748,7 @@ async def serve_portal():
                 body: JSON.stringify({ answer: currentFeedbackAnswer, rating: "DOWN", issues: issues })
             });
             closeFeedbackDrawer();
-            alert("Detailed feedback logged. Thank you!");
+            showToast("Feedback submitted successfully!");
         }
         function fillAndSend(text) {
             document.getElementById("chat-input").value = text;
@@ -943,12 +957,12 @@ async def serve_portal():
                     fetchDocuments();
                 } else {
                     const data = await res.json();
-                    alert("Upload failed: " + data.detail);
+                    showToast(data.detail, true);
                     statusDiv.classList.add('hidden');
                 }
             } catch (err) {
                 clearInterval(timer);
-                alert("Upload error: " + err);
+                showToast("Upload failed", true);
                 statusDiv.classList.add('hidden');
             }
         }
@@ -964,10 +978,10 @@ async def serve_portal():
                     fetchDocuments();
                 } else {
                     const data = await res.json();
-                    alert("Delete failed: " + data.detail);
+                    showToast("Delete failed", true);
                 }
             } catch (err) {
-                alert("Error deleting document: " + err);
+                showToast("Error deleting document", true);
             }
         }
 
@@ -977,11 +991,11 @@ async def serve_portal():
             try {
                 const res = await fetch('/api/reset', { method: 'POST' });
                 if (res.ok) {
-                    alert("Database index cleared successfully.");
+                    showToast("Database reset successfully.");
                     fetchDocuments();
                 }
             } catch (err) {
-                alert("Reset error: " + err);
+                showToast("Reset failed", true);
             }
         }
 
@@ -1326,6 +1340,8 @@ async def serve_portal():
             </div>
         </div>
     </div>
+    <!-- Action Toast container -->
+    <div id="toast-container" class="fixed top-6 right-6 z-50 flex flex-col gap-2"></div>
 </body>
 </html>"""
     return HTMLResponse(content=html_content, status_code=200)
