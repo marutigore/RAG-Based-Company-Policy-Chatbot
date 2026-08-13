@@ -344,6 +344,14 @@ async def serve_portal():
                 
                 <!-- FILE UPLOAD WIDGET -->
                 <div class="glass-panel p-5 rounded-2xl shadow-xl">
+                    <!-- Active Upload queue grid -->
+                    <div id="upload-queue-card" class="hidden mb-4 p-3 bg-slate-950/40 border border-indigo-500/10 rounded-xl">
+                        <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center justify-between"><span>Upload Queue</span> <span class="animate-pulse text-indigo-400">Processing...</span></p>
+                        <div class="flex items-center justify-between text-[10px] mt-2">
+                            <span class="truncate max-w-[150px] text-slate-300">compliance_regulations.pdf</span>
+                            <span class="text-slate-500">Pending</span>
+                        </div>
+                    </div>
                     <h3 class="text-md font-bold font-outfit flex items-center gap-2 mb-4">
                         <i class="fa-solid fa-file-arrow-up text-indigo-400"></i> Ingest Documents
                     </h3>
@@ -814,7 +822,8 @@ async def serve_portal():
             pctSpan.innerText = "0%";
             progress.style.width = "0%";
             logSpan.innerText = "Initializing PDF parser...";
-            statusDiv.classList.remove('hidden');
+            statusDiv.classList.remove("hidden");
+            document.getElementById("upload-queue-card").classList.remove("hidden");
             
             const formData = new FormData();
             formData.append("file", file);
@@ -846,7 +855,8 @@ async def serve_portal():
                     progress.style.width = "100%";
                     logSpan.innerText = "Database index completed successfully!";
                     setTimeout(() => {
-                        statusDiv.classList.add('hidden');
+                        statusDiv.classList.add("hidden");
+                        document.getElementById("upload-queue-card").classList.add("hidden");
                     }, 2000);
                     fetchDocuments();
                 } else {
