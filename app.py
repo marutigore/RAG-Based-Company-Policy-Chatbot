@@ -800,7 +800,7 @@ async def serve_portal():
                         <p class="text-xs font-semibold truncate text-slate-200">🟢 ${doc.source}</p>
                         <p class="text-[10px] text-slate-500 mt-0.5">Pages: ${doc.pages} | Chunks: ${doc.chunks}</p>
                     </div>
-                    <button onclick="deleteDocument('${doc.source}')" class="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg active:scale-95 transition">
+                    <button onclick="deleteDocument('${doc.source}')" title="Delete from index" class="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg active:scale-95 transition hover:animate-bounce">
                         <i class="fa-solid fa-trash-can text-xs"></i>
                     </button>
                 </div>
