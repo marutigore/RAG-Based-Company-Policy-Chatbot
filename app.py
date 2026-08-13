@@ -825,6 +825,19 @@ async def serve_portal():
             </div>
             `;
             container.appendChild(div);
+            const textContainer = document.getElementById(`answer-text-${msgId}`);
+            const words = data.answer.split(" ");
+            let wIdx = 0;
+            const interval = setInterval(() => {
+                if (wIdx < words.length) {
+                    textContainer.innerText += (wIdx === 0 ? "" : " ") + words[wIdx];
+                    wIdx++;
+                    container.scrollTop = container.scrollHeight;
+                } else {
+                    clearInterval(interval);
+                }
+            }, 30);
+            
             container.scrollTop = container.scrollHeight;
         }
 
@@ -843,6 +856,19 @@ async def serve_portal():
             </div>
             `;
             container.appendChild(div);
+            const textContainer = document.getElementById(`answer-text-${msgId}`);
+            const words = data.answer.split(" ");
+            let wIdx = 0;
+            const interval = setInterval(() => {
+                if (wIdx < words.length) {
+                    textContainer.innerText += (wIdx === 0 ? "" : " ") + words[wIdx];
+                    wIdx++;
+                    container.scrollTop = container.scrollHeight;
+                } else {
+                    clearInterval(interval);
+                }
+            }, 30);
+            
             container.scrollTop = container.scrollHeight;
             return div;
         }
@@ -857,6 +883,19 @@ async def serve_portal():
             </div>
             `;
             container.appendChild(div);
+            const textContainer = document.getElementById(`answer-text-${msgId}`);
+            const words = data.answer.split(" ");
+            let wIdx = 0;
+            const interval = setInterval(() => {
+                if (wIdx < words.length) {
+                    textContainer.innerText += (wIdx === 0 ? "" : " ") + words[wIdx];
+                    wIdx++;
+                    container.scrollTop = container.scrollHeight;
+                } else {
+                    clearInterval(interval);
+                }
+            }, 30);
+            
             container.scrollTop = container.scrollHeight;
         }
 
@@ -895,7 +934,7 @@ async def serve_portal():
             <div class="max-w-[85%] space-y-3">
                 <div class="rounded-2xl px-5 py-3.5 bg-[#0d1224]/30 border border-indigo-500/10 text-sm shadow-md">
                     <p class="text-xs font-semibold text-indigo-400 mb-1 flex items-center gap-1.5">Synthara Assistant <i class="fa-solid fa-shield-halved text-[9px] text-cyan-400"></i></p>
-                    <p class="text-slate-200 leading-relaxed whitespace-pre-wrap">${data.answer}</p>
+                    <p id="answer-text-${msgId}" class="text-slate-200 leading-relaxed whitespace-pre-wrap"></p>
                 </div>
                 
                 <!-- Citations Preview Accordion -->
@@ -946,6 +985,19 @@ async def serve_portal():
             </div>
             `;
             container.appendChild(div);
+            const textContainer = document.getElementById(`answer-text-${msgId}`);
+            const words = data.answer.split(" ");
+            let wIdx = 0;
+            const interval = setInterval(() => {
+                if (wIdx < words.length) {
+                    textContainer.innerText += (wIdx === 0 ? "" : " ") + words[wIdx];
+                    wIdx++;
+                    container.scrollTop = container.scrollHeight;
+                } else {
+                    clearInterval(interval);
+                }
+            }, 30);
+            
             container.scrollTop = container.scrollHeight;
         }
 
