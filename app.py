@@ -24,7 +24,17 @@ from utils.validator import validate_query, evaluate_faithfulness, evaluate_answ
 logger = logging.getLogger("app")
 logging.basicConfig(level=config.LOG_LEVEL)
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="Synthara RAG Portal")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Core RAG functions matching test_validation.py expectations
 def init_session_state() -> None:
@@ -674,7 +684,12 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <!-- UI Logics & API bindings JS -->
     <script>
-        const isStreamlitIframe = window.self !== window.top;
+        let isStreamlitIframe = false;
+        try {
+            isStreamlitIframe = window.self !== window.top;
+        } catch (e) {
+            isStreamlitIframe = true;
+        }
         const API_BASE = isStreamlitIframe 
             ? window.location.protocol + "//" + window.location.hostname + ":8000"
             : "";
@@ -1553,8 +1568,8 @@ is_streamlit = any("streamlit" in arg for arg in sys.argv) or "streamlit" in sys
 def start_api_server():
     try:
         import uvicorn
-        # API server runs on port 8000
-        uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
+        # API server runs on port 8000 listening on all network interfaces
+        uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
     except Exception as e:
         logger.error(f"Failed to start background API server: {e}")
 
