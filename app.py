@@ -496,7 +496,29 @@ async def serve_portal():
                 <div id="tab-analytics" class="hidden flex-grow overflow-y-auto p-6 space-y-6">
                     <div>
                         <h3 class="text-md font-bold font-outfit mb-3">📊 Document Overlap Topology</h3>
-                        <p class="text-xs text-slate-400 mb-4">Visual representation of overlapping context nodes and file mapping relationships extracted from the document index database.</p>
+                        <p class="text-xs text-slate-400 mb-2">Visual representation of overlapping context nodes. Click nodes to trace linkages.</p>
+                        <div class="flex items-center justify-center bg-[#070913]/60 rounded-xl p-3 border border-indigo-500/10 mb-4">
+                            <svg viewBox="0 0 400 150" class="w-full max-w-lg h-36">
+                                <!-- Connection Lines -->
+                                <line x1="100" y1="75" x2="200" y2="35" stroke="#6366F1" stroke-width="1.5" stroke-dasharray="3,3" />
+                                <line x1="100" y1="75" x2="200" y2="115" stroke="#6366F1" stroke-width="1.5" />
+                                <line x1="200" y1="35" x2="300" y2="75" stroke="#8B5CF6" stroke-width="1.5" />
+                                <line x1="200" y1="115" x2="300" y2="75" stroke="#8B5CF6" stroke-width="1.5" />
+                                
+                                <!-- Document Nodes -->
+                                <circle cx="100" cy="75" r="14" fill="#1e1b4b" stroke="#6366F1" stroke-width="2" class="cursor-pointer hover:r-16 transition" onclick="alert('IT handbook node active.')"/>
+                                <text x="100" y="105" fill="#94A3B8" font-size="9" text-anchor="middle" font-weight="bold">it_policy.pdf</text>
+                                
+                                <circle cx="200" cy="35" r="14" fill="#1e1b4b" stroke="#a855f7" stroke-width="2" class="cursor-pointer hover:r-16 transition" onclick="alert('HR policies node active.')"/>
+                                <text x="200" y="20" fill="#94A3B8" font-size="9" text-anchor="middle" font-weight="bold">hr_policy.pdf</text>
+                                
+                                <circle cx="200" cy="115" r="14" fill="#1e1b4b" stroke="#ec4899" stroke-width="2" class="cursor-pointer hover:r-16 transition" onclick="alert('Compliance guides node active.')"/>
+                                <text x="200" y="138" fill="#94A3B8" font-size="9" text-anchor="middle" font-weight="bold">compliance.pdf</text>
+                                
+                                <circle cx="300" cy="75" r="14" fill="#0f172a" stroke="#06b6d4" stroke-width="2"/>
+                                <text x="300" y="105" fill="#94A3B8" font-size="9" text-anchor="middle" font-weight="bold">Overlap Hub</text>
+                            </svg>
+                        </div>
                         
                         <div class="space-y-4">
                             <div>
