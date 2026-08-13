@@ -231,6 +231,7 @@ async def serve_portal():
 <body class="font-sans text-slate-100 min-h-screen relative overflow-x-hidden">
     <!-- Glow Orbs in background -->
     <div class="glow-orb top-10 left-10 animate-pulse"></div>
+    <div id="mouse-glow-mesh" class="absolute w-[250px] h-[250px] rounded-full pointer-events-none transition-all duration-500 ease-out opacity-0 z-0 bg-gradient-to-r from-indigo-500/10 to-cyan-500/0 blur-[60px]"></div>
     <div class="glow-orb bottom-10 right-10 animate-pulse" style="animation-duration: 8s;"></div>
 
     <!-- LOGIN SCREEN -->
@@ -538,6 +539,14 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        document.addEventListener("mousemove", (e) => {
+            const mesh = document.getElementById("mouse-glow-mesh");
+            if (mesh) {
+                mesh.style.left = `${e.pageX - 125}px`;
+                mesh.style.top = `${e.pageY - 125}px`;
+                mesh.style.opacity = "1";
+            }
+        });
         function toggleSidebar() {
             const sidebar = document.getElementById("sidebar-panel");
             const mainArea = document.getElementById("main-workspace");
