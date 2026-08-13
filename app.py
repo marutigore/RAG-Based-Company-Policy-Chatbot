@@ -286,6 +286,7 @@ async def serve_portal():
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                     API Active
                 </span>
+                <button onclick="toggleSidebar()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-indigo-400 hover:text-white rounded-xl text-xs font-semibold transition mr-2"><i class="fa-solid fa-sidebar mr-1.5"></i> Sidebar</button>
                 <button onclick="handleLogout()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition">
                     <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Exit Portal
                 </button>
@@ -325,7 +326,7 @@ async def serve_portal():
         <main class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start flex-grow">
             
             <!-- LEFT PANEL: FILE MANAGEMENT & CONTROLS -->
-            <div class="space-y-6 lg:col-span-1">
+            <div id="sidebar-panel" class="space-y-6 lg:col-span-1 transition-all duration-300">
                 
                 <!-- FILE UPLOAD WIDGET -->
                 <div class="glass-panel p-5 rounded-2xl shadow-xl">
@@ -418,7 +419,7 @@ async def serve_portal():
             </div>
 
             <!-- RIGHT PANEL: INTERACTIVE CHAT WORKSPACE & ANALYTICS -->
-            <div class="lg:col-span-2 flex flex-col glass-panel rounded-3xl h-[620px] shadow-2xl relative overflow-hidden">
+            <div id="main-workspace" class="lg:col-span-2 flex flex-col glass-panel rounded-3xl h-[620px] shadow-2xl relative overflow-hidden transition-all duration-300">
                 
                 <!-- TABS HEADER -->
                 <div class="flex border-b border-indigo-950/60 bg-[#0d1224]/30 px-6 py-4 items-center justify-between">
@@ -529,6 +530,22 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        function toggleSidebar() {
+            const sidebar = document.getElementById("sidebar-panel");
+            const mainArea = document.getElementById("main-workspace");
+            sidebar.classList.toggle("hidden");
+            if (sidebar.classList.contains("hidden")) {
+                mainArea.className = "lg:col-span-3 flex flex-col glass-panel rounded-3xl h-[620px] shadow-2xl relative overflow-hidden transition-all duration-300";
+            } else {
+                mainArea.className = "lg:col-span-2 flex flex-col glass-panel rounded-3xl h-[620px] shadow-2xl relative overflow-hidden transition-all duration-300";
+            }
+        }
+        document.addEventListener("keydown", (e) => {
+            if (e.ctrlKey && e.key === "\\") {
+                e.preventDefault();
+                toggleSidebar();
+            }
+        });
         let documentRegistry = [];
         let totalCost = 0.0;
         let totalChunksCount = 0;
