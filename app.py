@@ -474,6 +474,11 @@ async def serve_portal():
                             <button onclick="simulateSTT()" class="absolute left-3 p-1.5 text-slate-400 hover:text-indigo-400 active:scale-95 transition">
                                 <i class="fa-solid fa-microphone text-md"></i>
                             </button>
+                            <div id="mic-wave" class="hidden absolute left-12 flex gap-0.5 items-center h-4">
+                                <span class="w-0.5 bg-indigo-500 h-2 animate-bounce" style="animation-duration: 0.6s"></span>
+                                <span class="w-0.5 bg-indigo-500 h-4 animate-bounce" style="animation-duration: 0.4s"></span>
+                                <span class="w-0.5 bg-indigo-500 h-1.5 animate-bounce" style="animation-duration: 0.8s"></span>
+                            </div>
                             <input type="text" id="chat-input" onkeydown="if(event.key === 'Enter') handleSendQuery()" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-2xl py-3.5 pl-12 pr-16 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition shadow-lg shadow-indigo-500/5" placeholder="Ask a corporate policy question...">
                             <button onclick="handleSendQuery()" class="absolute right-3 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs rounded-xl shadow-lg active:scale-95 transition flex items-center gap-1.5">
                                 Send <i class="fa-solid fa-paper-plane text-[10px]"></i>
@@ -543,6 +548,18 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        function simulateSTT() {
+            const wave = document.getElementById("mic-wave");
+            const input = document.getElementById("chat-input");
+            wave.classList.remove("hidden");
+            input.placeholder = "Listening...";
+            setTimeout(() => {
+                wave.classList.add("hidden");
+                input.placeholder = "Ask a corporate policy question...";
+                input.value = "What is the standard vacation leave policy?";
+                input.focus();
+            }, 1800);
+        }
         let currentFeedbackAnswer = "";
         function openFeedbackDrawer(answer) {
             currentFeedbackAnswer = answer;
@@ -1068,11 +1085,7 @@ async def serve_portal():
         }
 
         // Voice Search simulator
-        function simulateSTT() {
-            const input = document.getElementById('chat-input');
-            input.value = "What is the vacation leave policy?";
-            input.focus();
-        }
+        
     </script>
     <!-- Citation Highlight Modal -->
     <div id="citation-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/85 backdrop-blur-sm p-4">
