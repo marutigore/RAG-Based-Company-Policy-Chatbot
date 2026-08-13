@@ -413,20 +413,28 @@ async def serve_portal():
                         </select>
                     </div>
 
-                    <div>
-                        <div class="flex items-center justify-between text-xs font-medium mb-1.5">
-                            <span class="text-slate-400">Target Chunk Size</span>
-                            <span id="chunk-size-val" class="font-bold text-indigo-400">512</span>
-                        </div>
-                        <input type="range" id="chunk-size-slider" min="128" max="1024" step="64" value="512" class="w-full accent-indigo-500 h-1 bg-slate-950 rounded-lg cursor-pointer">
-                    </div>
+                    <div class="border border-indigo-500/10 rounded-xl overflow-hidden">
+                        <button onclick="toggleTuningSlider()" class="w-full px-4 py-2 bg-[#0d1224]/50 hover:bg-[#0d1224]/80 text-xs font-bold text-slate-400 flex items-center justify-between transition">
+                            <span>🛠️ Vector chunking Model parameters</span>
+                            <i id="tuning-chevron" class="fa-solid fa-chevron-down text-[10px]"></i>
+                        </button>
+                        <div id="tuning-sliders-area" class="hidden p-4 bg-[#0d1224]/10 border-t border-indigo-500/10 space-y-4">
+                            <div>
+                                <div class="flex items-center justify-between text-[11px] font-medium mb-1.5">
+                                    <span class="text-slate-400">Target Chunk Size</span>
+                                    <span id="chunk-size-val" class="font-bold text-indigo-400">512</span>
+                                </div>
+                                <input type="range" id="chunk-size-slider" min="128" max="1024" step="64" value="512" class="w-full accent-indigo-500 h-1 bg-slate-950 rounded-lg cursor-pointer">
+                            </div>
 
-                    <div>
-                        <div class="flex items-center justify-between text-xs font-medium mb-1.5">
-                            <span class="text-slate-400">Chunk Overlap</span>
-                            <span id="chunk-overlap-val" class="font-bold text-indigo-400">64</span>
+                            <div>
+                                <div class="flex items-center justify-between text-[11px] font-medium mb-1.5">
+                                    <span class="text-slate-400">Chunk Overlap</span>
+                                    <span id="chunk-overlap-val" class="font-bold text-indigo-400">64</span>
+                                </div>
+                                <input type="range" id="chunk-overlap-slider" min="0" max="256" step="16" value="64" class="w-full accent-indigo-500 h-1 bg-slate-950 rounded-lg cursor-pointer">
+                            </div>
                         </div>
-                        <input type="range" id="chunk-overlap-slider" min="0" max="256" step="16" value="64" class="w-full accent-indigo-500 h-1 bg-slate-950 rounded-lg cursor-pointer">
                     </div>
                 </div>
 
@@ -613,6 +621,16 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        function toggleTuningSlider() {
+            const sliders = document.getElementById("tuning-sliders-area");
+            const chevron = document.getElementById("tuning-chevron");
+            sliders.classList.toggle("hidden");
+            if (sliders.classList.contains("hidden")) {
+                chevron.className = "fa-solid fa-chevron-down text-[10px]";
+            } else {
+                chevron.className = "fa-solid fa-chevron-up text-[10px]";
+            }
+        }
         function closeSyncModal() {
             document.getElementById("sync-modal").classList.add("hidden");
         }
