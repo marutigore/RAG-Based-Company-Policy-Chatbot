@@ -192,6 +192,14 @@ async def serve_portal():
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(99, 102, 241, 0.15);
         }
+        .neomorphic-depth {
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 1px 1px rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(0, 0, 0, 0.8) !important;
+        }
+        .neomorphic-depth:focus-within {
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8), 0 0 15px rgba(99, 102, 241, 0.25) !important;
+            border-color: rgba(99, 102, 241, 0.4) !important;
+        }
         
         .glow-orb {
             position: absolute;
@@ -242,7 +250,7 @@ async def serve_portal():
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
                             <i class="fa-solid fa-user"></i>
                         </span>
-                        <input type="text" id="username" value="admin" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="Enter username">
+                        <input type="text" id="username" value="admin" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-xl py-3 pl-10 pr-4 text-white neomorphic-depth placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="Enter username">
                     </div>
                 </div>
                 
@@ -252,7 +260,7 @@ async def serve_portal():
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
                             <i class="fa-solid fa-lock"></i>
                         </span>
-                        <input type="password" id="password" value="password" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="Enter password">
+                        <input type="password" id="password" value="password" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-xl py-3 pl-10 pr-4 text-white neomorphic-depth placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="Enter password">
                     </div>
                 </div>
                 
