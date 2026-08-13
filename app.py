@@ -543,6 +543,25 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        let currentFeedbackAnswer = "";
+        function openFeedbackDrawer(answer) {
+            currentFeedbackAnswer = answer;
+            document.getElementById("feedback-drawer").classList.remove("hidden");
+        }
+        function closeFeedbackDrawer() {
+            document.getElementById("feedback-drawer").classList.add("hidden");
+        }
+        async function submitDetailedFeedback() {
+            const checks = document.querySelectorAll("input[name='fb-issue']:checked");
+            const issues = Array.from(checks).map(c => c.value);
+            await fetch("/api/feedback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ answer: currentFeedbackAnswer, rating: "DOWN", issues: issues })
+            });
+            closeFeedbackDrawer();
+            alert("Detailed feedback logged. Thank you!");
+        }
         function fillAndSend(text) {
             document.getElementById("chat-input").value = text;
             handleSendQuery();
@@ -995,7 +1014,7 @@ async def serve_portal():
                     <button onclick="handleRating('${data.answer}', 'UP', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-emerald-500/10 border border-slate-800 text-slate-400 hover:text-emerald-400 text-xs rounded-lg transition">
                         👍
                     </button>
-                    <button onclick="handleRating('${data.answer}', 'DOWN', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-red-500/10 border border-slate-800 text-slate-400 hover:text-red-400 text-xs rounded-lg transition">
+                    <button onclick="openFeedbackDrawer('${data.answer}'); handleRating('${data.answer}', 'DOWN', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-red-500/10 border border-slate-800 text-slate-400 hover:text-red-400 text-xs rounded-lg transition">
                         👎
                     </button>
                 </div>
@@ -1066,6 +1085,22 @@ async def serve_portal():
                 <p id="modal-citation-text" class="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap"></p>
             </div>
         </div>
+    </div>
+    <!-- Qualitative Feedback Drawer -->
+    <div id="feedback-drawer" class="hidden fixed bottom-6 right-6 z-50 w-80 glass-panel p-5 rounded-2xl border border-indigo-500/20 shadow-2xl">
+        <div class="flex justify-between items-center mb-2">
+            <h4 class="text-xs font-bold text-slate-200">RAG Response Feedback</h4>
+            <button onclick="closeFeedbackDrawer()" class="text-slate-500 hover:text-white transition"><i class="fa-solid fa-xmark text-xs"></i></button>
+        </div>
+        <p class="text-[10px] text-slate-400 mb-3">Please help improve precision. What was the issue?</p>
+        <div class="space-y-2 mb-4">
+            <label class="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" name="fb-issue" value="inaccurate" class="accent-indigo-500"> Excerpt is inaccurate</label>
+            <label class="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" name="fb-issue" value="irrelevant" class="accent-indigo-500"> Irrelevant references</label>
+            <label class="flex items-center gap-2 text-xs cursor-pointer"><input type="checkbox" name="fb-issue" value="hallucination" class="accent-indigo-500"> Contains hallucination</label>
+        </div>
+        <button onclick="submitDetailedFeedback()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow-md transition active:scale-95">
+            Submit Feedback
+        </button>
     </div>
 </body>
 </html>"""
