@@ -291,7 +291,7 @@ async def serve_portal():
             </div>
             
             <div class="flex items-center gap-3">
-                <span id="api-status-badge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center gap-1.5">
+                <span id="api-status-badge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-slate-900 border border-indigo-500/30 text-emerald-400 flex items-center gap-1.5 shadow-[0_0_15px_rgba(99,102,241,0.25)] hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition duration-300">
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                     API Active
                 </span>
