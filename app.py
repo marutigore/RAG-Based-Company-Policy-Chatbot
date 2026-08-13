@@ -1053,6 +1053,16 @@ async def serve_portal():
                     </div>
                 </div>
 
+                <!-- Token Consumption distribution bar -->
+                <div class="glass-panel px-4 py-2 rounded-xl border border-indigo-500/10 text-xs flex items-center justify-between gap-4">
+                    <span class="text-slate-400">Tokens Index:</span>
+                    <div class="flex-grow flex h-2 rounded-full overflow-hidden bg-slate-900 border border-slate-800">
+                        <div class="bg-indigo-500 h-2" style="width: 60%;" title="Context (Prompt): 60%"></div>
+                        <div class="bg-pink-500 h-2" style="width: 40%;" title="Answer (Completion): 40%"></div>
+                    </div>
+                    <span class="font-space text-slate-300 font-bold">~420t</span>
+                </div>
+                
                 <!-- Evaluations Metrics Accordion -->
                 <div class="border border-indigo-500/10 rounded-xl overflow-hidden">
                     <button onclick="toggleAccordion('eval-${msgId}')" class="w-full px-4 py-2 bg-[#0d1224]/50 hover:bg-[#0d1224]/80 text-xs font-bold text-slate-400 flex items-center justify-between transition">
