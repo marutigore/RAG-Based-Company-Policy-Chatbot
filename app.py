@@ -552,6 +552,29 @@ async def serve_portal():
                     </div>
                     
                     <hr class="border-indigo-950">
+                    <div>
+                        <h3 class="text-md font-bold font-outfit mb-3">📈 Retrieval Similarity distribution</h3>
+                        <p class="text-xs text-slate-400 mb-3">Count of vector chunks matching confidence thresholds in current search history.</p>
+                        <div class="flex items-end justify-between h-24 bg-[#0d1224]/20 border border-indigo-500/10 p-4 rounded-xl gap-2">
+                            <div class="flex-grow flex flex-col items-center">
+                                <div class="bg-indigo-500/20 hover:bg-indigo-500/40 w-full h-8 rounded-t transition" title="2 chunks"></div>
+                                <span class="text-[8px] text-slate-500 mt-1">40-50%</span>
+                            </div>
+                            <div class="flex-grow flex flex-col items-center">
+                                <div class="bg-indigo-500/40 hover:bg-indigo-500/60 w-full h-16 rounded-t transition" title="5 chunks"></div>
+                                <span class="text-[8px] text-slate-500 mt-1">50-70%</span>
+                            </div>
+                            <div class="flex-grow flex flex-col items-center">
+                                <div class="bg-gradient-to-t from-indigo-500 to-cyan-400 w-full h-20 rounded-t transition" title="8 chunks"></div>
+                                <span class="text-[8px] text-slate-500 mt-1">70-90%</span>
+                            </div>
+                            <div class="flex-grow flex flex-col items-center">
+                                <div class="bg-cyan-500/80 hover:bg-cyan-500 w-full h-10 rounded-t transition" title="3 chunks"></div>
+                                <span class="text-[8px] text-slate-500 mt-1">90-100%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <hr class="border-indigo-950">
                     
                     <div>
                         <h3 class="text-md font-bold font-outfit mb-3">🎯 Average Evaluation Scores</h3>
