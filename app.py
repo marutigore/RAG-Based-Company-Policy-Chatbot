@@ -331,7 +331,7 @@ async def serve_portal():
         </section>
 
         <!-- SPLIT WORKSPACE -->
-        <main class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start flex-grow">
+        <main id="workspace-grid" class="flex flex-col lg:flex-row gap-6 items-start flex-grow relative">
             
             <!-- LEFT PANEL: FILE MANAGEMENT & CONTROLS -->
             <div id="sidebar-panel" class="space-y-6 lg:col-span-1 transition-all duration-300">
@@ -427,7 +427,7 @@ async def serve_portal():
             </div>
 
             <!-- RIGHT PANEL: INTERACTIVE CHAT WORKSPACE & ANALYTICS -->
-            <div id="main-workspace" class="lg:col-span-2 flex flex-col glass-panel rounded-3xl h-[620px] shadow-2xl relative overflow-hidden transition-all duration-300">
+            <div id="main-workspace" class="flex-grow w-full lg:w-2/3 flex flex-col glass-panel rounded-3xl h-[620px] shadow-2xl relative overflow-hidden transition-all duration-300">
                 
                 <!-- TABS HEADER -->
                 <div class="flex border-b border-indigo-950/60 bg-[#0d1224]/30 px-6 py-4 items-center justify-between">
