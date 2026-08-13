@@ -147,9 +147,7 @@ def log_evaluation(query: str, answer: str, faithfulness: float, relevancy: floa
         logger.error(f"Failed to write evaluation logs: {e}")
 
 # FASTAPI API ENDPOINTS
-@app.get("/", response_class=HTMLResponse)
-async def serve_portal():
-    html_content = """<!DOCTYPE html>
+HTML_CONTENT = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -676,6 +674,7 @@ async def serve_portal():
 
     <!-- UI Logics & API bindings JS -->
     <script>
+        const API_BASE = "http://localhost:8000";
         let isLoggedIn = false;
         function closeResetModal() {
             document.getElementById("reset-modal").classList.add("hidden");
@@ -933,7 +932,7 @@ async def serve_portal():
         // Fetch Documents Registry
         async function fetchDocuments() {
             try {
-                const res = await fetch('/api/documents');
+                const res = await fetch(API_BASE + '/api/documents');
                 const data = await res.json();
                 documentRegistry = data;
                 renderRegistry();
@@ -1015,7 +1014,7 @@ async def serve_portal():
             }, 300);
             
             try {
-                const res = await fetch('/api/upload', {
+                const res = await fetch(API_BASE + '/api/upload', {
                     method: 'POST',
                     body: formData
                 });
@@ -1046,7 +1045,7 @@ async def serve_portal():
         async function deleteDocument(sourceName) {
             if (!confirm(`Are you sure you want to delete '${sourceName}'?`)) return;
             try {
-                const res = await fetch(`/api/document/${encodeURIComponent(sourceName)}`, {
+                const res = await fetch(API_BASE + `/api/document/${encodeURIComponent(sourceName)}`, {
                     method: 'DELETE'
                 });
                 if (res.ok) {
@@ -1064,7 +1063,7 @@ async def serve_portal():
         async function handleResetDB() {
             if (!confirm("Are you sure you want to completely wipe the vector index database? This cannot be undone.")) return;
             try {
-                const res = await fetch('/api/reset', { method: 'POST' });
+                const res = await fetch(API_BASE + '/api/reset', { method: 'POST' });
                 if (res.ok) {
                     showToast("Database reset successfully.");
                     fetchDocuments();
@@ -1086,7 +1085,7 @@ async def serve_portal():
             const typingDiv = appendTypingIndicator();
             
             try {
-                const res = await fetch('/api/query', {
+                const res = await fetch(API_BASE + '/api/query', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1355,7 +1354,7 @@ async def serve_portal():
         // Log thumbs rating feedback
         async function handleRating(answerText, rating, btn) {
             try {
-                const res = await fetch('/api/feedback', {
+                const res = await fetch(API_BASE + '/api/feedback', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1435,7 +1434,10 @@ async def serve_portal():
     </div>
 </body>
 </html>"""
-    return HTMLResponse(content=html_content, status_code=200)
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_portal():
+    return HTMLResponse(content=HTML_CONTENT, status_code=200)
 
 @app.post("/api/login")
 async def api_login(payload: Dict[str, str]):
@@ -1525,5 +1527,63 @@ async def api_feedback(payload: Dict[str, str]):
     # Save feedback rating
     return JSONResponse(content={"status": "logged"})
 
+import threading
+import sys
+
+# Detect if running in streamlit environment
+is_streamlit = any("streamlit" in arg for arg in sys.argv) or "streamlit" in sys.modules
+
+def start_api_server():
+    try:
+        import uvicorn
+        # API server runs on port 8000
+        uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
+    except Exception as e:
+        logger.error(f"Failed to start background API server: {e}")
+
+if not hasattr(app, "_api_started"):
+    app._api_started = True
+    thread = threading.Thread(target=start_api_server, daemon=True)
+    thread.start()
+
+if is_streamlit:
+    try:
+        import streamlit as st
+        import streamlit.components.v1 as components
+        
+        st.set_page_config(
+            page_title="Synthara Policy Portal",
+            page_icon="🛡️",
+            layout="wide",
+            initial_sidebar_state="collapsed"
+        )
+        
+        st.markdown("""
+        <style>
+            /* Reset container padding to fit the full-viewport custom dashboard */
+            .block-container {
+                padding: 0px !important;
+                margin: 0px !important;
+                max-width: 100% !important;
+            }
+            iframe {
+                border: none !important;
+            }
+            [data-testid="stHeader"] {
+                visibility: hidden !important;
+                height: 0px !important;
+            }
+            footer {
+                visibility: hidden !important;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Render the custom glassmorphic HTML SPA in full height
+        components.html(HTML_CONTENT, height=850, scrolling=True)
+    except Exception as e:
+        logger.error(f"Streamlit rendering failed: {e}")
+
 if __name__ == "__main__":
+    # If run directly as python script, default to hosting on port 8501
     uvicorn.run("app:app", host="0.0.0.0", port=8501, reload=False)
