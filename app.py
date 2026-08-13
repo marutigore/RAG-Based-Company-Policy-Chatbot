@@ -188,6 +188,17 @@ async def serve_portal():
         
         .glass-panel {
             background: rgba(13, 18, 36, 0.45);
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+        .shake-element {
+            animation: shake 0.4s ease-in-out;
+            border-color: rgba(239, 68, 68, 0.6) !important;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.25) !important;
+        }
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(99, 102, 241, 0.15);
@@ -1038,6 +1049,9 @@ async def serve_portal():
                 } else {
                     const data = await res.json();
                     appendSystemErrorMessage(data.detail || "Retrieval execution aborted.");
+                    const chatCard = document.getElementById("chat-input").parentElement;
+                    chatCard.classList.add("shake-element");
+                    setTimeout(() => { chatCard.classList.remove("shake-element"); }, 500);
                 }
             } catch (err) {
                 typingDiv.remove();
