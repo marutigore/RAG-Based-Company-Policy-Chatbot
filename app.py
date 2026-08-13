@@ -296,6 +296,7 @@ async def serve_portal():
                     API Active
                 </span>
                 <button onclick="toggleSidebar()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-indigo-400 hover:text-white rounded-xl text-xs font-semibold transition mr-2"><i class="fa-solid fa-sidebar mr-1.5"></i> Sidebar</button>
+                <button onclick="toggleTheme()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-cyan-400 hover:text-white rounded-xl text-xs font-semibold transition mr-2"><i class="fa-solid fa-circle-half-stroke mr-1.5"></i> Theme</button>
                 <button onclick="handleLogout()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition">
                     <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Exit Portal
                 </button>
@@ -627,6 +628,9 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        function toggleTheme() {
+            document.body.classList.toggle("light-theme");
+        }
         function exportAnswer(select, answer) {
             const format = select.value;
             if (!format) return;
