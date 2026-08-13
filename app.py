@@ -498,7 +498,13 @@ async def serve_portal():
 
                     <!-- Bottom Input bar -->
                     <div class="p-4 border-t border-indigo-950 bg-[#060814]/80">
-                        <div class="relative flex items-center">
+                        <datalist id="autocomplete-list">
+                                <option value="What is the standard vacation leave policy?">
+                                <option value="What are the standard working hours?">
+                                <option value="What is the Remote Work Policy?">
+                                <option value="How to submit feedback rating?">
+                            </datalist>
+                            <div class="relative flex items-center">
                             <button onclick="simulateSTT()" class="absolute left-3 p-1.5 text-slate-400 hover:text-indigo-400 active:scale-95 transition">
                                 <i class="fa-solid fa-microphone text-md"></i>
                             </button>
@@ -507,7 +513,7 @@ async def serve_portal():
                                 <span class="w-0.5 bg-indigo-500 h-4 animate-bounce" style="animation-duration: 0.4s"></span>
                                 <span class="w-0.5 bg-indigo-500 h-1.5 animate-bounce" style="animation-duration: 0.8s"></span>
                             </div>
-                            <input type="text" id="chat-input" onkeydown="if(event.key === 'Enter') handleSendQuery()" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-2xl py-3.5 pl-12 pr-16 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition shadow-lg shadow-indigo-500/5" placeholder="Ask a corporate policy question...">
+                            <input type="text" id="chat-input" onkeydown="if(event.key === 'Enter') handleSendQuery()" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-2xl py-3.5 pl-12 pr-16 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition shadow-lg shadow-indigo-500/5" placeholder="Ask a corporate policy question..." list="autocomplete-list">
                             <button onclick="handleSendQuery()" class="absolute right-3 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs rounded-xl shadow-lg active:scale-95 transition flex items-center gap-1.5">
                                 Send <i class="fa-solid fa-paper-plane text-[10px]"></i>
                             </button>
