@@ -539,6 +539,14 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        function openCitationModal(text, source, page) {
+            document.getElementById("modal-citation-title").innerText = `Policy Excerpt: ${source} (Page ${page})`;
+            document.getElementById("modal-citation-text").innerText = text;
+            document.getElementById("citation-modal").classList.remove("hidden");
+        }
+        function closeCitationModal() {
+            document.getElementById("citation-modal").classList.add("hidden");
+        }
         document.addEventListener("mousemove", (e) => {
             const mesh = document.getElementById("mouse-glow-mesh");
             if (mesh) {
@@ -909,9 +917,10 @@ async def serve_portal():
             let citationsHTML = '';
             if (data.citations && data.citations.length > 0) {
                 data.citations.forEach((cit, idx) => {
+                    const escapedText = cit.text.replace(/\"/g, '&quot;').replace(/\'/g, "\\'");
                     citationsHTML += `
-                    <div class="citation-card text-xs">
-                        <p class="font-bold text-indigo-300">Excerpt [${idx+1}]: ${cit.metadata.source} (Page ${cit.metadata.page})</p>
+                    <div onclick="openCitationModal('${escapedText}', '${cit.metadata.source}', '${cit.metadata.page}')" class="citation-card text-xs cursor-pointer hover:border-cyan-500/40 transition duration-200">
+                        <p class="font-bold text-indigo-300">Excerpt [${idx+1}]: ${cit.metadata.source} (Page ${cit.metadata.page}) <i class="fa-solid fa-expand text-[9px] text-slate-500 ml-1"></i></p>
                         <p class="text-slate-400 italic mt-1 font-space">"Highlight: ... ${cit.text.substring(0, 200)}..."</p>
                         <p class="text-[10px] text-cyan-400 font-semibold mt-1">Match Confidence: ${(cit.similarity * 100).toFixed(1)}%</p>
                     </div>
@@ -1038,6 +1047,18 @@ async def serve_portal():
             input.focus();
         }
     </script>
+    <!-- Citation Highlight Modal -->
+    <div id="citation-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/85 backdrop-blur-sm p-4">
+        <div class="glass-panel p-6 rounded-2xl w-full max-w-2xl border border-indigo-500/20 shadow-2xl relative">
+            <button onclick="closeCitationModal()" class="absolute top-4 right-4 text-slate-500 hover:text-white transition">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <h3 id="modal-citation-title" class="text-md font-bold font-outfit text-indigo-400 mb-3">Policy Segment Reference</h3>
+            <div class="bg-[#070913] border border-indigo-500/10 p-4 rounded-xl max-h-[300px] overflow-y-auto">
+                <p id="modal-citation-text" class="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap"></p>
+            </div>
+        </div>
+    </div>
 </body>
 </html>"""
     return HTMLResponse(content=html_content, status_code=200)
