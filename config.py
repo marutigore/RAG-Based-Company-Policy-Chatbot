@@ -22,7 +22,7 @@ except Exception as e:
     logger.warning(f"Error loading .env file (using system environment): {e}")
 
 # Check for Gemini key first (very generous free tier, no billing required)
-GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").replace('\u2011', '-').replace('\u2013', '-').replace('\u2014', '-').strip()
 raw_openai_key = os.getenv("OPENAI_API_KEY", "").strip()
 
 # If Gemini Key is present and valid, dynamically route OpenAI client calls to Google Gemini API
