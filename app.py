@@ -598,6 +598,18 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        window.onload = () => {
+            const zone = document.getElementById("drop-zone");
+            if (zone) {
+                zone.addEventListener("dragover", (e) => {
+                    e.preventDefault();
+                    zone.className = "border-2 border-dashed border-cyan-400 rounded-xl p-6 text-center bg-[#0d1224]/80 shadow-[0_0_15px_rgba(6,182,212,0.25)] transition duration-200 cursor-pointer";
+                });
+                zone.addEventListener("dragleave", () => {
+                    zone.className = "border-2 border-dashed border-indigo-500/25 rounded-xl p-6 text-center hover:border-cyan-500/40 transition duration-200 cursor-pointer bg-[#0d1224]/30";
+                });
+            }
+        }
         function simulateSTT() {
             const wave = document.getElementById("mic-wave");
             const input = document.getElementById("chat-input");
