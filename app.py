@@ -459,6 +459,10 @@ async def serve_portal():
                                 <p class="text-sm font-semibold text-indigo-300">Synthara Assistant</p>
                                 <p class="text-xs text-slate-300 leading-relaxed">
                                     Welcome to the secure corporate workspace. Upload PDF manuals or policy handbooks on the left panel to build the vector collection. You can then query corporate regulations, trace policy source files, audit grounded evaluations, and adjust hyperparameter models in real time.
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 pt-4 border-t border-indigo-500/10">
+                                    <button onclick="fillAndSend('What is the standard vacation leave policy?')" class="px-3 py-2 bg-slate-950/40 hover:bg-indigo-500/10 border border-indigo-500/10 text-left text-[10px] rounded-lg transition text-slate-400 hover:text-indigo-300 font-medium">💡 Vacation Leave Policy</button>
+                                    <button onclick="fillAndSend('What are the standard working hours?')" class="px-3 py-2 bg-slate-950/40 hover:bg-indigo-500/10 border border-indigo-500/10 text-left text-[10px] rounded-lg transition text-slate-400 hover:text-indigo-300 font-medium">💡 Standard Working Hours</button>
+                                </div>
                                 </p>
                             </div>
                         </div>
@@ -539,6 +543,10 @@ async def serve_portal():
     <!-- UI Logics & API bindings JS -->
     <script>
         let isLoggedIn = false;
+        function fillAndSend(text) {
+            document.getElementById("chat-input").value = text;
+            handleSendQuery();
+        }
         function openCitationModal(text, source, page) {
             document.getElementById("modal-citation-title").innerText = `Policy Excerpt: ${source} (Page ${page})`;
             document.getElementById("modal-citation-text").innerText = text;
