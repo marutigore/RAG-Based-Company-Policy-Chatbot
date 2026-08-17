@@ -327,58 +327,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 <body class="font-sans text-slate-100 min-h-screen relative overflow-x-hidden">
     <!-- Glow Orbs in background -->
     <div class="glow-orb top-10 left-10 animate-pulse"></div>
-    <div id="mouse-glow-mesh" class="absolute w-[250px] h-[250px] rounded-full pointer-events-none transition-all duration-500 ease-out opacity-0 z-0 bg-gradient-to-r from-indigo-500/10 to-cyan-500/0 blur-[60px]"></div>
-    <div class="glow-orb bottom-10 right-10 animate-pulse" style="animation-duration: 8s;"></div>
-
-    <!-- LOGIN MODAL (HIDDEN BY DEFAULT) -->
-    <div id="login-container" style="display: none;" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/90 backdrop-blur-md">
-        <div class="glass-panel p-8 md:p-10 rounded-2xl w-full max-w-md shadow-2xl shadow-indigo-950/20 border border-indigo-500/20 relative">
-            <button onclick="closeLoginModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white transition">
-                <i class="fa-solid fa-xmark text-lg"></i>
-            </button>
-            <div class="text-center mb-6">
-                <h1 class="text-2xl font-extrabold font-outfit tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                    ⚡ Switch Account
-                </h1>
-                <p class="text-slate-400 text-xs mt-1">Select an enterprise role or enter credentials</p>
-                <div class="mt-3 flex flex-wrap gap-2 justify-center text-[11px]">
-                    <button type="button" onclick="switchRole('admin'); closeLoginModal();" class="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 font-semibold transition cursor-pointer">⚡ Admin</button>
-                    <button type="button" onclick="switchRole('manager'); closeLoginModal();" class="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 font-semibold transition cursor-pointer">👔 Manager</button>
-                    <button type="button" onclick="switchRole('compliance'); closeLoginModal();" class="px-2.5 py-1 rounded-lg bg-pink-500/15 hover:bg-pink-500/30 border border-pink-500/30 text-pink-300 font-semibold transition cursor-pointer">🛡️ Compliance</button>
-                    <button type="button" onclick="switchRole('employee'); closeLoginModal();" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold transition cursor-pointer">👤 Employee</button>
-                </div>
-            </div>
-            
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Username</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
-                            <i class="fa-solid fa-user"></i>
-                        </span>
-                        <input type="text" id="username" value="admin" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-xl py-3 pl-10 pr-4 text-white neomorphic-depth placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="Enter username">
-                    </div>
-                </div>
-                
-                <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Password</label>
-                    <div class="relative">
-                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
-                            <i class="fa-solid fa-lock"></i>
-                        </span>
-                        <input type="password" id="password" value="admin123" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-xl py-3 pl-10 pr-4 text-white neomorphic-depth placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="Enter password">
-                    </div>
-                </div>
-                
-                <button type="button" id="login-btn" onclick="handleLogin()" class="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold font-outfit rounded-xl shadow-lg shadow-indigo-500/20 active:translate-y-0.5 transition duration-150 cursor-pointer">
-                    🚀 Switch & Authenticate
-                </button>
-                <div id="login-error" class="hidden text-red-400 text-xs text-center font-medium mt-1"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- MAIN DASHBOARD (DEFAULT ACTIVE) -->
+    <!-- MAIN DASHBOARD (DIRECT WORKSPACE) -->
     <div id="dashboard-container" class="min-h-screen flex flex-col max-w-7xl mx-auto p-6 relative z-10">
         
         <!-- HEADER -->
@@ -1028,19 +977,17 @@ HTML_CONTENT = """<!DOCTYPE html>
             }
         });
 
-        // Login inputs event listeners
-        document.getElementById('username').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') handleLogin();
-        });
-        document.getElementById('password').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') handleLogin();
-        });
-        document.getElementById('username').addEventListener('input', () => {
-            document.getElementById('login-error').classList.add('hidden');
-        });
-        document.getElementById('password').addEventListener('input', () => {
-            document.getElementById('login-error').classList.add('hidden');
-        });
+        // Login inputs event listeners (if present)
+        const userInput = document.getElementById('username');
+        const passInput = document.getElementById('password');
+        if (userInput) {
+            userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleLogin(); });
+            userInput.addEventListener('input', () => { const err = document.getElementById('login-error'); if (err) err.classList.add('hidden'); });
+        }
+        if (passInput) {
+            passInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleLogin(); });
+            passInput.addEventListener('input', () => { const err = document.getElementById('login-error'); if (err) err.classList.add('hidden'); });
+        }
 
         let authToken = localStorage.getItem("synthara_auth_token") || ("synthara_admin_session_" + Date.now());
         let currentUser = {
