@@ -28,6 +28,7 @@ from utils.translator import detect_language, get_supported_languages, build_mul
 from utils.notifications import format_email_template, format_slack_block_kit, format_teams_card, dispatch_webhook
 from utils.audit import log_audit_event, get_audit_logs, verify_audit_integrity, export_audit_csv
 from utils.suggestions import generate_document_suggestions, get_all_suggestions, get_autocomplete_suggestions
+from utils.document_viewer import get_document_page_preview
 import time
 
 # Setup logging
@@ -854,6 +855,29 @@ HTML_CONTENT = """<!DOCTYPE html>
         }
         function closeSyncModal() {
             document.getElementById("sync-modal").classList.add("hidden");
+        }
+        async function openCitationModal(text, source, page) {
+            const modal = document.getElementById("citation-modal");
+            const titleEl = document.getElementById("modal-citation-title");
+            const textEl = document.getElementById("modal-citation-text");
+            if (titleEl) titleEl.innerText = `Policy Inspector: ${source} (Page ${page})`;
+            if (textEl) textEl.innerHTML = `<p class="text-xs text-indigo-400 animate-pulse">Loading highlighted document preview...</p>`;
+            modal.classList.remove("hidden");
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/document/preview/${encodeURIComponent(source)}/${page}?highlight=${encodeURIComponent(text.substring(0, 60))}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (textEl) textEl.innerHTML = data.content_html || text;
+                } else {
+                    if (textEl) textEl.innerText = text;
+                }
+            } catch (e) {
+                if (textEl) textEl.innerText = text;
+            }
+        }
+        function closeCitationModal() {
+            document.getElementById("citation-modal").classList.add("hidden");
         }
         function triggerSharepointSync() {
             const modal = document.getElementById("sync-modal");
@@ -1881,6 +1905,10 @@ async def api_export_audit(format: str = "csv"):
 @app.get("/api/languages")
 async def api_get_languages():
     return JSONResponse(content=get_supported_languages())
+
+@app.get("/api/document/preview/{source_name}/{page_number}")
+async def api_document_preview(source_name: str, page_number: int, highlight: Optional[str] = None):
+    return JSONResponse(content=get_document_page_preview(source_name, page_number, highlight))
 
 @app.get("/api/search/facets")
 async def api_get_facets():
