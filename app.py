@@ -27,6 +27,7 @@ from utils.versioning import register_document_version, get_document_versions, g
 from utils.translator import detect_language, get_supported_languages, build_multilingual_system_prompt
 from utils.notifications import format_email_template, format_slack_block_kit, format_teams_card, dispatch_webhook
 from utils.audit import log_audit_event, get_audit_logs, verify_audit_integrity, export_audit_csv
+from utils.suggestions import generate_document_suggestions, get_all_suggestions, get_autocomplete_suggestions
 import time
 
 # Setup logging
@@ -1728,6 +1729,10 @@ async def api_upload(
             
         add_documents_to_db(chunks)
         
+        # Generate automatic contextual policy question suggestions
+        full_doc_text = " ".join([p.get("text", "") for p in pages[:5]])
+        generate_document_suggestions(full_doc_text, file.filename)
+        
         # Log to audit trail
         log_audit_event(
             event_type="DOCUMENT_INGESTED",
@@ -1880,6 +1885,14 @@ async def api_get_languages():
 @app.get("/api/search/facets")
 async def api_get_facets():
     return JSONResponse(content=get_search_facets())
+
+@app.get("/api/suggestions")
+async def api_get_suggestions():
+    return JSONResponse(content=get_all_suggestions())
+
+@app.get("/api/autocomplete")
+async def api_get_autocomplete(q: Optional[str] = None):
+    return JSONResponse(content=get_autocomplete_suggestions(q or ""))
 
 @app.post("/api/share/email")
 async def api_share_email(payload: Dict[str, Any]):
