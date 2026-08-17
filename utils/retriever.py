@@ -139,7 +139,7 @@ def get_collection() -> chromadb.Collection:
     Returns:
         chromadb.Collection: Vector DB collection object.
     """
-    global _collection
+    global _collection, _chroma_client
     if _collection is None:
         with _collection_lock:
             if _collection is None:
@@ -152,8 +152,25 @@ def get_collection() -> chromadb.Collection:
                     )
                     logger.info(f"ChromaDB collection '{COLLECTION_NAME}' successfully resolved.")
                 except Exception as e:
-                    logger.error(f"Error fetching ChromaDB collection: {e}")
-                    raise RuntimeError(f"Failed to fetch collection: {e}")
+                    logger.warning(f"Error fetching ChromaDB collection ({e}). Rebuilding database storage directory cleanly...")
+                    try:
+                        _chroma_client = None
+                        if os.path.exists(config.VECTOR_DB_DIR):
+                            shutil.rmtree(config.VECTOR_DB_DIR, ignore_errors=True)
+                        os.makedirs(config.VECTOR_DB_DIR, exist_ok=True)
+                        client = chromadb.PersistentClient(
+                            path=config.VECTOR_DB_DIR,
+                            settings=Settings(anonymized_telemetry=False)
+                        )
+                        _chroma_client = client
+                        _collection = client.get_or_create_collection(
+                            name=COLLECTION_NAME,
+                            metadata={"hnsw:space": "cosine"}
+                        )
+                        logger.info(f"ChromaDB collection '{COLLECTION_NAME}' recreated cleanly.")
+                    except Exception as inner_e:
+                        logger.error(f"Error recreating ChromaDB collection: {inner_e}")
+                        raise RuntimeError(f"Failed to fetch collection: {inner_e}")
             
     return _collection
 
@@ -353,12 +370,20 @@ def query_db(
             all_metas = db_res["metadatas"]
             
             if all_docs and len(all_docs) > 0:
-                tokenized_corpus = [tokenize_text(doc) for doc in all_docs]
-                from rank_bm25 import BM25Okapi
-                bm25 = BM25Okapi(tokenized_corpus)
-                
-                tokenized_query = tokenize_text(query_text)
-                scores = bm25.get_scores(tokenized_query)
+                try:
+                    from rank_bm25 import BM25Okapi
+                    tokenized_corpus = [tokenize_text(doc) for doc in all_docs]
+                    bm25 = BM25Okapi(tokenized_corpus)
+                    tokenized_query = tokenize_text(query_text)
+                    scores = bm25.get_scores(tokenized_query)
+                except Exception:
+                    # Pure-python keyword matching fallback
+                    q_words = set(w.lower() for w in query_text.split() if len(w) > 2)
+                    scores = []
+                    for doc in all_docs:
+                        d_lower = doc.lower()
+                        score = sum(1.0 for w in q_words if w in d_lower)
+                        scores.append(score)
                 
                 doc_scores = list(enumerate(scores))
                 doc_scores = [(idx, score) for idx, score in doc_scores if score > 0.0]

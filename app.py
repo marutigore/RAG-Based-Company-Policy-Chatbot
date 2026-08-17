@@ -878,18 +878,6 @@ HTML_CONTENT = """<!DOCTYPE html>
                 term.innerHTML += `<p class="text-red-400">> Sync connection failed: ${err.message}</p>`;
             }
         }
-        window.onload = () => {
-            const zone = document.getElementById("drop-zone");
-            if (zone) {
-                zone.addEventListener("dragover", (e) => {
-                    e.preventDefault();
-                    zone.className = "border-2 border-dashed border-cyan-400 rounded-xl p-6 text-center bg-[#0d1224]/80 shadow-[0_0_15px_rgba(6,182,212,0.25)] transition duration-200 cursor-pointer";
-                });
-                zone.addEventListener("dragleave", () => {
-                    zone.className = "border-2 border-dashed border-indigo-500/25 rounded-xl p-6 text-center hover:border-cyan-500/40 transition duration-200 cursor-pointer bg-[#0d1224]/30";
-                });
-            }
-        }
         function simulateSTT() {
             const wave = document.getElementById("mic-wave");
             const input = document.getElementById("chat-input");
@@ -967,15 +955,57 @@ HTML_CONTENT = """<!DOCTYPE html>
             document.getElementById("rbac-val").innerHTML = `<span class="px-2 py-0.5 rounded bg-${c}-500/10 border border-${c}-500/30 text-${c}-400 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-${c}-400 animate-ping"></span> ${e.target.value}</span>`;
         });
 
-        // Trigger manual browse file click
-        document.getElementById('drop-zone').addEventListener('click', () => {
-            document.getElementById('file-input').click();
-        });
-        document.getElementById('file-input').addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                uploadDocument(e.target.files[0]);
-            }
-        });
+        // Robust Drag-and-Drop and Browse File Implementation
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        // Prevent browser default behavior of opening dropped files
+        window.addEventListener('dragover', (e) => { e.preventDefault(); }, false);
+        window.addEventListener('drop', (e) => { e.preventDefault(); }, false);
+
+        if (dropZone && fileInput) {
+            // Click to browse
+            dropZone.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            // Drag visual cues
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.className = "border-2 border-dashed border-cyan-400 rounded-xl p-6 text-center bg-[#0d1224]/80 shadow-[0_0_25px_rgba(6,182,212,0.35)] transition duration-200 cursor-pointer";
+                }, false);
+            });
+
+            ['dragleave', 'dragend'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropZone.className = "border-2 border-dashed border-indigo-500/25 rounded-xl p-6 text-center hover:border-cyan-500/40 transition duration-200 cursor-pointer bg-[#0d1224]/30";
+                }, false);
+            });
+
+            // Handle file drop
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dropZone.className = "border-2 border-dashed border-indigo-500/25 rounded-xl p-6 text-center hover:border-cyan-500/40 transition duration-200 cursor-pointer bg-[#0d1224]/30";
+                
+                const dt = e.dataTransfer;
+                if (dt && dt.files && dt.files.length > 0) {
+                    uploadDocument(dt.files[0]);
+                }
+            }, false);
+
+            // Handle file input change
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    uploadDocument(e.target.files[0]);
+                    e.target.value = "";
+                }
+            });
+        }
 
         // Login inputs event listeners (if present)
         const userInput = document.getElementById('username');
@@ -1819,6 +1849,9 @@ async def api_query(payload: Dict[str, Any]):
         
     # Select A/B Prompt Variant
     ab_variant = select_active_variant(payload.get("prompt_variant"))
+    
+    # Detect language of incoming query
+    lang_info = detect_language(effective_query)
     
     res = run_pipeline(
         effective_query,
