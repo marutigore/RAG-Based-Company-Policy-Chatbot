@@ -17,7 +17,7 @@ import uvicorn
 import config
 from utils.document_loader import load_pdf, load_document
 from utils.chunker import split_documents
-from utils.retriever import add_documents_to_db, query_db, reset_db, get_collection, delete_document_from_db
+from utils.retriever import add_documents_to_db, query_db, reset_db, get_collection, delete_document_from_db, get_search_facets
 from utils.validator import validate_query, evaluate_faithfulness, evaluate_answer_relevancy
 from utils.auth import authenticate_user, create_jwt_token, verify_jwt_token, get_all_users, register_user
 from utils.memory import create_session, add_message, get_session_messages, list_sessions, delete_session, build_contextual_query
@@ -124,13 +124,19 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]], lang_info: O
         logger.error(f"Error calling LLM: {e}")
         return f"An error occurred: {str(e)}"
 
-def run_pipeline(question: str, clearance: str = "Employee", lang_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+def run_pipeline(
+    question: str,
+    clearance: str = "Employee",
+    lang_info: Optional[Dict[str, Any]] = None,
+    category: Optional[str] = None,
+    source_filter: Optional[str] = None
+) -> Dict[str, Any]:
     try:
         cleaned_query = validate_query(question)
     except ValueError as e:
         return {"answer": str(e), "citations": [], "evaluation": {"faithfulness": {"score": 0.0, "reasoning": str(e)}, "relevancy": {"score": 0.0, "reasoning": str(e)}}}
 
-    retrieved_chunks = query_db(cleaned_query, k=5, clearance=clearance)
+    retrieved_chunks = query_db(cleaned_query, k=5, clearance=clearance, category=category, source_filter=source_filter)
     answer = call_llm(cleaned_query, retrieved_chunks, lang_info=lang_info)
     contexts = [chunk["text"] for chunk in retrieved_chunks]
     
@@ -584,6 +590,14 @@ HTML_CONTENT = """<!DOCTYPE html>
 
                     <!-- Bottom Input bar -->
                     <div class="p-4 border-t border-indigo-950 bg-[#060814]/80">
+                        <div class="flex items-center gap-1.5 mb-2 overflow-x-auto pb-1 text-[10px]">
+                            <span class="text-slate-500 font-semibold uppercase tracking-wider text-[9px] mr-1">Filter:</span>
+                            <button onclick="setCategoryFilter('All', this)" class="cat-filter-btn px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-semibold transition">All Policies</button>
+                            <button onclick="setCategoryFilter('HR & Benefits', this)" class="cat-filter-btn px-2.5 py-1 rounded-full bg-slate-900 hover:bg-indigo-950/40 text-slate-400 hover:text-slate-200 border border-slate-800 transition">HR & Benefits</button>
+                            <button onclick="setCategoryFilter('IT & Security', this)" class="cat-filter-btn px-2.5 py-1 rounded-full bg-slate-900 hover:bg-indigo-950/40 text-slate-400 hover:text-slate-200 border border-slate-800 transition">IT & Security</button>
+                            <button onclick="setCategoryFilter('Legal & Compliance', this)" class="cat-filter-btn px-2.5 py-1 rounded-full bg-slate-900 hover:bg-indigo-950/40 text-slate-400 hover:text-slate-200 border border-slate-800 transition">Legal</button>
+                            <button onclick="setCategoryFilter('Operations & Remote', this)" class="cat-filter-btn px-2.5 py-1 rounded-full bg-slate-900 hover:bg-indigo-950/40 text-slate-400 hover:text-slate-200 border border-slate-800 transition">Operations</button>
+                        </div>
                         <datalist id="autocomplete-list">
                                 <option value="What is the standard vacation leave policy?">
                                 <option value="What are the standard working hours?">
@@ -1254,7 +1268,19 @@ HTML_CONTENT = """<!DOCTYPE html>
         }
 
         let currentSessionId = localStorage.getItem("synthara_session_id") || ("sess_" + Math.random().toString(36).substring(2, 9));
+        let activeCategoryFilter = "All";
         
+        function setCategoryFilter(cat, btn) {
+            activeCategoryFilter = cat;
+            document.querySelectorAll('.cat-filter-btn').forEach(b => {
+                b.className = "cat-filter-btn px-2.5 py-1 rounded-full bg-slate-900 hover:bg-indigo-950/40 text-slate-400 hover:text-slate-200 border border-slate-800 transition";
+            });
+            if (btn) {
+                btn.className = "cat-filter-btn px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-semibold transition";
+            }
+            showToast(`Filtering search by: ${cat}`);
+        }
+
         function startNewSession() {
             currentSessionId = "sess_" + Math.random().toString(36).substring(2, 9);
             localStorage.setItem("synthara_session_id", currentSessionId);
@@ -1286,6 +1312,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                         session_id: currentSessionId,
                         user_id: currentUser ? currentUser.username : "anonymous",
                         clearance: document.getElementById('clearance-select').value,
+                        category: activeCategoryFilter,
                         chunk_size: parseInt(document.getElementById('chunk-size-slider').value),
                         chunk_overlap: parseInt(document.getElementById('chunk-overlap-slider').value)
                     })
@@ -1697,6 +1724,8 @@ async def api_query(payload: Dict[str, Any]):
     start_time = time.time()
     query = payload.get("query", "")
     clearance = payload.get("clearance", "Employee")
+    category = payload.get("category")
+    source_filter = payload.get("source_filter")
     session_id = payload.get("session_id")
     user_id = payload.get("user_id", "anonymous")
     
@@ -1714,7 +1743,13 @@ async def api_query(payload: Dict[str, Any]):
     # Detect query language
     lang_info = detect_language(query)
     
-    res = run_pipeline(effective_query, clearance=clearance, lang_info=lang_info)
+    res = run_pipeline(
+        effective_query,
+        clearance=clearance,
+        lang_info=lang_info,
+        category=category,
+        source_filter=source_filter
+    )
     
     # Calculate token usage costs & latency
     latency_ms = (time.time() - start_time) * 1000.0
@@ -1770,6 +1805,10 @@ async def api_query(payload: Dict[str, Any]):
 @app.get("/api/languages")
 async def api_get_languages():
     return JSONResponse(content=get_supported_languages())
+
+@app.get("/api/search/facets")
+async def api_get_facets():
+    return JSONResponse(content=get_search_facets())
 
 @app.post("/api/share/email")
 async def api_share_email(payload: Dict[str, Any]):

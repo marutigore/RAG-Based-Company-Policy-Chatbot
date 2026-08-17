@@ -27,6 +27,52 @@ _chroma_client: Optional[chromadb.PersistentClient] = None
 _collection: Optional[chromadb.Collection] = None
 COLLECTION_NAME = "company_policies"
 
+def classify_chunk_category(text: str, source: str) -> str:
+    """Classifies document chunk into corporate policy category."""
+    s = (str(source) + " " + str(text)).lower()
+    if any(k in s for k in ["leave", "vacation", "pto", "holiday", "maternity", "paternity", "sick", "benefit"]):
+        return "HR & Benefits"
+    elif any(k in s for k in ["security", "password", "vpn", "access", "login", "incident", "network", "cyber"]):
+        return "IT & Security"
+    elif any(k in s for k in ["conduct", "harassment", "ethics", "discrimination", "complaint", "whistleblower"]):
+        return "Legal & Compliance"
+    elif any(k in s for k in ["expense", "travel", "reimbursement", "payroll", "budget", "finance"]):
+        return "Finance & Travel"
+    elif any(k in s for k in ["remote", "hybrid", "workplace", "hours", "attendance", "overtime", "schedule"]):
+        return "Operations & Remote"
+    return "General"
+
+
+def get_search_facets() -> Dict[str, Any]:
+    """Returns available categories, indexed document sources, and clearance options."""
+    try:
+        col = get_collection()
+        res = col.get(include=["metadatas"])
+        if not res or not res["metadatas"]:
+            return {
+                "categories": ["HR & Benefits", "IT & Security", "Legal & Compliance", "Finance & Travel", "Operations & Remote", "General"],
+                "sources": [],
+                "clearances": ["Employee", "Manager", "Compliance Officer"]
+            }
+        categories = set()
+        sources = set()
+        for meta in res["metadatas"]:
+            categories.add(meta.get("category", "General"))
+            sources.add(meta.get("source", "Unknown Document"))
+        return {
+            "categories": sorted(list(categories)) if categories else ["General"],
+            "sources": sorted(list(sources)),
+            "clearances": ["Employee", "Manager", "Compliance Officer"]
+        }
+    except Exception as e:
+        logger.warning(f"Error fetching facets: {e}")
+        return {
+            "categories": ["HR & Benefits", "IT & Security", "Legal & Compliance", "Finance & Travel", "Operations & Remote", "General"],
+            "sources": [],
+            "clearances": ["Employee", "Manager", "Compliance Officer"]
+        }
+
+
 def expand_query_with_synonyms(query: str) -> list[str]:
     # Returns expanded queries using dictionary synonyms
     return [query]
@@ -157,10 +203,13 @@ def add_documents_to_db(chunks: List[Dict[str, Any]]) -> None:
             ids.append(unique_id)
             
             # Format metadata: ChromaDB requires primitive types (str, int, float, bool)
+            cat = chunk["metadata"].get("category") or classify_chunk_category(chunk_text, source)
             meta = {
                 "source": str(source),
                 "page": int(page),
-                "token_count": int(chunk["metadata"].get("token_count", 0))
+                "token_count": int(chunk["metadata"].get("token_count", 0)),
+                "category": str(cat),
+                "version": str(chunk["metadata"].get("version", "v1.0"))
             }
             metadatas.append(meta)
             documents.append(chunk_text)
@@ -241,7 +290,14 @@ def tokenize_text(text: str) -> list[str]:
     return [w for w in re.findall(r'\w+', text.lower()) if w]
 
 
-def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40, clearance: str = "Employee") -> List[Dict[str, Any]]:
+def query_db(
+    query_text: str,
+    k: int = 5,
+    min_similarity: float = 0.40,
+    clearance: str = "Employee",
+    category: Optional[str] = None,
+    source_filter: Optional[str] = None
+) -> List[Dict[str, Any]]:
     if not query_text or not query_text.strip():
         logger.warning("Empty query submitted to retriever.")
         return []
@@ -372,7 +428,20 @@ def query_db(query_text: str, k: int = 5, min_similarity: float = 0.40, clearanc
                     "rrf_score": rrf_score
                 })
                 
-        retrieved_items = sorted(fused_results, key=lambda x: x["rrf_score"], reverse=True)[:k]
+        retrieved_items = sorted(fused_results, key=lambda x: x["rrf_score"], reverse=True)[:k*2]
+        
+        # Apply faceted filters
+        if category and category.lower() not in ["all", "all categories"]:
+            filtered_by_cat = [item for item in retrieved_items if item["metadata"].get("category", "").lower() == category.lower()]
+            if filtered_by_cat:
+                retrieved_items = filtered_by_cat
+                
+        if source_filter and source_filter.lower() not in ["all", "all sources"]:
+            filtered_by_src = [item for item in retrieved_items if item["metadata"].get("source", "").lower() == source_filter.lower()]
+            if filtered_by_src:
+                retrieved_items = filtered_by_src
+
+        retrieved_items = retrieved_items[:k]
         retrieved_items = rerank_contexts(query_text, retrieved_items)
         logger.info(f"Retrieved {len(retrieved_items)} unique combined results using hybrid search.")
         return retrieved_items
