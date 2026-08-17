@@ -20,6 +20,7 @@ from utils.chunker import split_documents
 from utils.retriever import add_documents_to_db, query_db, reset_db, get_collection, delete_document_from_db
 from utils.validator import validate_query, evaluate_faithfulness, evaluate_answer_relevancy
 from utils.auth import authenticate_user, create_jwt_token, verify_jwt_token, get_all_users, register_user
+from utils.memory import create_session, add_message, get_session_messages, list_sessions, delete_session, build_contextual_query
 
 # Setup logging
 logger = logging.getLogger("app")
@@ -538,8 +539,13 @@ HTML_CONTENT = """<!DOCTYPE html>
                         </button>
                     </div>
                     
-                    <div id="chat-session-badge" class="text-[10px] text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1 rounded-full font-space">
-                        Session: Active
+                    <div class="flex items-center gap-2">
+                        <button onclick="startNewSession()" class="text-xs px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20 transition flex items-center gap-1.5 shadow-sm active:scale-95">
+                            <i class="fa-solid fa-plus text-[10px]"></i> New Chat
+                        </button>
+                        <div id="chat-session-badge" class="text-[10px] text-slate-400 bg-slate-900 border border-slate-800 px-3 py-1 rounded-full font-space">
+                            Session: Active
+                        </div>
                     </div>
                 </div>
 
@@ -1182,6 +1188,16 @@ HTML_CONTENT = """<!DOCTYPE html>
             }
         }
 
+        let currentSessionId = localStorage.getItem("synthara_session_id") || ("sess_" + Math.random().toString(36).substring(2, 9));
+        
+        function startNewSession() {
+            currentSessionId = "sess_" + Math.random().toString(36).substring(2, 9);
+            localStorage.setItem("synthara_session_id", currentSessionId);
+            const badge = document.getElementById("chat-session-badge");
+            if (badge) badge.innerText = "Session: " + currentSessionId.substring(5, 11);
+            showToast("Started a new conversation session.");
+        }
+
         // Send query RAG
         async function handleSendQuery() {
             const input = document.getElementById('chat-input');
@@ -1196,9 +1212,14 @@ HTML_CONTENT = """<!DOCTYPE html>
             try {
                 const res = await fetch(API_BASE + '/api/query', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': authToken ? `Bearer ${authToken}` : ''
+                    },
                     body: JSON.stringify({
                         query: query,
+                        session_id: currentSessionId,
+                        user_id: currentUser ? currentUser.username : "anonymous",
                         clearance: document.getElementById('clearance-select').value,
                         chunk_size: parseInt(document.getElementById('chunk-size-slider').value),
                         chunk_overlap: parseInt(document.getElementById('chunk-overlap-slider').value)
@@ -1590,16 +1611,36 @@ async def api_documents():
 async def api_query(payload: Dict[str, Any]):
     query = payload.get("query", "")
     clearance = payload.get("clearance", "Employee")
+    session_id = payload.get("session_id")
+    user_id = payload.get("user_id", "anonymous")
     
     if not query:
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
-        
-    res = run_pipeline(query, clearance=clearance)
     
-    # Calculate mock token usage costs
-    prompt_len = len(query) // 4
+    # Retrieve past session history if available for multi-turn contextual resolution
+    effective_query = query
+    history = []
+    if session_id:
+        history = get_session_messages(session_id, limit=6)
+        effective_query = build_contextual_query(query, history)
+        add_message(session_id=session_id, role="user", content=query, user_id=user_id)
+        
+    res = run_pipeline(effective_query, clearance=clearance)
+    
+    # Calculate token usage costs
+    prompt_len = len(effective_query) // 4
     comp_len = len(res["answer"]) // 4
     cost = (prompt_len * 0.15 / 1e6) + (comp_len * 0.60 / 1e6)
+    
+    if session_id:
+        add_message(
+            session_id=session_id,
+            role="assistant",
+            content=res["answer"],
+            citations=res["citations"],
+            evaluation=res["evaluation"],
+            user_id=user_id
+        )
     
     log_evaluation(
         query=query,
@@ -1612,8 +1653,31 @@ async def api_query(payload: Dict[str, Any]):
         "answer": res["answer"],
         "citations": res["citations"],
         "evaluation": res["evaluation"],
-        "cost": cost
+        "cost": cost,
+        "session_id": session_id
     })
+
+@app.get("/api/conversations")
+async def api_get_conversations(user_id: Optional[str] = None):
+    return JSONResponse(content=list_sessions(user_id=user_id))
+
+@app.post("/api/conversations")
+async def api_create_conversation(payload: Optional[Dict[str, Any]] = None):
+    data = payload or {}
+    user_id = data.get("user_id", "anonymous")
+    title = data.get("title")
+    session = create_session(user_id=user_id, title=title)
+    return JSONResponse(content=session)
+
+@app.get("/api/conversations/{session_id}")
+async def api_get_conversation_messages(session_id: str):
+    messages = get_session_messages(session_id)
+    return JSONResponse(content={"session_id": session_id, "messages": messages})
+
+@app.delete("/api/conversations/{session_id}")
+async def api_delete_conversation(session_id: str):
+    deleted = delete_session(session_id)
+    return JSONResponse(content={"deleted": deleted})
 
 @app.delete("/api/document/{source_name}")
 async def api_delete_document(source_name: str):
