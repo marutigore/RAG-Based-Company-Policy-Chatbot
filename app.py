@@ -23,6 +23,7 @@ from utils.auth import authenticate_user, create_jwt_token, verify_jwt_token, ge
 from utils.memory import create_session, add_message, get_session_messages, list_sessions, delete_session, build_contextual_query
 from utils.analytics import record_query_telemetry, get_analytics_summary
 from utils.feedback import record_feedback, get_feedback_summary, list_feedback_records
+from utils.versioning import register_document_version, get_document_versions, get_active_version_tag
 import time
 
 # Setup logging
@@ -61,7 +62,8 @@ def get_indexed_documents() -> List[Dict[str, Any]]:
                 docs[source] = {
                     "source": source,
                     "pages": 0,
-                    "chunks": 0
+                    "chunks": 0,
+                    "version": get_active_version_tag(source)
                 }
             docs[source]["chunks"] += 1
             docs[source]["pages"] = max(docs[source]["pages"], meta.get("page", 1))
@@ -1118,10 +1120,14 @@ HTML_CONTENT = """<!DOCTYPE html>
             let html = '';
             documentRegistry.forEach(doc => {
                 totalChunks += doc.chunks;
+                const ver = doc.version || "v1.0";
                 html += `
                 <div class="flex items-center justify-between bg-[#0d1224]/50 border border-indigo-500/10 p-3 rounded-xl hover:border-indigo-500/30 transition">
                     <div class="truncate max-w-[200px]">
-                        <p class="text-xs font-semibold truncate text-slate-200">🟢 ${doc.source}</p>
+                        <div class="flex items-center gap-1.5 truncate">
+                            <span class="text-xs font-semibold truncate text-slate-200">🟢 ${doc.source}</span>
+                            <span class="px-1.5 py-0.2 rounded bg-indigo-500/20 text-[9px] text-indigo-300 font-mono font-bold">${ver}</span>
+                        </div>
                         <p class="text-[10px] text-slate-500 mt-0.5">Pages: ${doc.pages} | Chunks: ${doc.chunks}</p>
                     </div>
                     <button onclick="deleteDocument('${doc.source}')" title="Delete from index" class="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg active:scale-95 transition hover:animate-bounce">
@@ -1636,11 +1642,33 @@ async def api_upload(
         pages = load_document(file_path)
         chunks = split_documents(pages, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         
+        # Register in version control ledger
+        ver_info = register_document_version(
+            filename=file.filename,
+            file_path=file_path,
+            chunks_count=len(chunks),
+            pages_count=len(pages)
+        )
+        
+        # Attach version tag to chunk metadatas
+        for c in chunks:
+            c["metadata"]["version"] = ver_info.get("version", "v1.0")
+            c["metadata"]["hash"] = ver_info.get("hash", "")
+            
         add_documents_to_db(chunks)
-        return JSONResponse(content={"status": "indexed", "chunks_count": len(chunks), "pages_count": len(pages)})
+        return JSONResponse(content={
+            "status": "indexed",
+            "chunks_count": len(chunks),
+            "pages_count": len(pages),
+            "version": ver_info.get("version", "v1.0")
+        })
     except Exception as e:
         logger.error(f"Upload and indexing failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/documents/versions")
+async def api_document_versions(filename: Optional[str] = None):
+    return JSONResponse(content=get_document_versions(filename))
 
 @app.get("/api/documents")
 async def api_documents():
