@@ -24,6 +24,7 @@ from utils.memory import create_session, add_message, get_session_messages, list
 from utils.analytics import record_query_telemetry, get_analytics_summary
 from utils.feedback import record_feedback, get_feedback_summary, list_feedback_records
 from utils.versioning import register_document_version, get_document_versions, get_active_version_tag
+from utils.translator import detect_language, get_supported_languages, build_multilingual_system_prompt
 import time
 
 # Setup logging
@@ -86,7 +87,7 @@ def sanitize_text(text: str) -> str:
 def track_usage(usage) -> None:
     pass
 
-def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
+def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]], lang_info: Optional[Dict[str, Any]] = None) -> str:
     client = config.get_openai_client()
     context_blocks = []
     for idx, chunk in enumerate(retrieved_chunks):
@@ -96,12 +97,16 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
         context_blocks.append(f"Excerpt [{idx + 1}] (Source: {source}, Page {page}):\n{chunk_text}")
 
     context_str = "\n\n".join(context_blocks)
-    system_prompt = (
-        "You are an expert corporate policy assistant. Your goal is to answer the employee's question "
-        "using ONLY the provided policy excerpts. If the information is not present in the excerpts, "
-        "state that you cannot find the answer in the current policy documents. Do not hallucinate.\n\n"
-        "At the end of your response, list the citations matching the Excerpt bracket numbers (e.g. [1], [2])."
-    )
+    
+    if lang_info:
+        system_prompt = build_multilingual_system_prompt(lang_info)
+    else:
+        system_prompt = (
+            "You are an expert corporate policy assistant. Your goal is to answer the employee's question "
+            "using ONLY the provided policy excerpts. If the information is not present in the excerpts, "
+            "state that you cannot find the answer in the current policy documents. Do not hallucinate.\n\n"
+            "At the end of your response, list the citations matching the Excerpt bracket numbers (e.g. [1], [2])."
+        )
     user_prompt = f"Context Excerpts:\n{context_str}\n\nQuestion:\n{question}\n\nGrounded Response:"
     
     try:
@@ -118,14 +123,14 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
         logger.error(f"Error calling LLM: {e}")
         return f"An error occurred: {str(e)}"
 
-def run_pipeline(question: str, clearance: str = "Employee") -> Dict[str, Any]:
+def run_pipeline(question: str, clearance: str = "Employee", lang_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     try:
         cleaned_query = validate_query(question)
     except ValueError as e:
         return {"answer": str(e), "citations": [], "evaluation": {"faithfulness": {"score": 0.0, "reasoning": str(e)}, "relevancy": {"score": 0.0, "reasoning": str(e)}}}
 
     retrieved_chunks = query_db(cleaned_query, k=5, clearance=clearance)
-    answer = call_llm(cleaned_query, retrieved_chunks)
+    answer = call_llm(cleaned_query, retrieved_chunks, lang_info=lang_info)
     contexts = [chunk["text"] for chunk in retrieved_chunks]
     
     faith_eval = evaluate_faithfulness(contexts, answer)
@@ -1694,7 +1699,10 @@ async def api_query(payload: Dict[str, Any]):
         effective_query = build_contextual_query(query, history)
         add_message(session_id=session_id, role="user", content=query, user_id=user_id)
         
-    res = run_pipeline(effective_query, clearance=clearance)
+    # Detect query language
+    lang_info = detect_language(query)
+    
+    res = run_pipeline(effective_query, clearance=clearance, lang_info=lang_info)
     
     # Calculate token usage costs & latency
     latency_ms = (time.time() - start_time) * 1000.0
@@ -1743,8 +1751,13 @@ async def api_query(payload: Dict[str, Any]):
         "evaluation": res["evaluation"],
         "cost": cost,
         "latency_ms": round(latency_ms, 2),
+        "language": lang_info,
         "session_id": session_id
     })
+
+@app.get("/api/languages")
+async def api_get_languages():
+    return JSONResponse(content=get_supported_languages())
 
 @app.get("/api/analytics/summary")
 async def api_analytics_summary():
