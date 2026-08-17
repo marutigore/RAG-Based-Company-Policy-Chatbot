@@ -19,6 +19,7 @@ from utils.document_loader import load_pdf
 from utils.chunker import split_documents
 from utils.retriever import add_documents_to_db, query_db, reset_db, get_collection, delete_document_from_db
 from utils.validator import validate_query, evaluate_faithfulness, evaluate_answer_relevancy
+from utils.auth import authenticate_user, create_jwt_token, verify_jwt_token, get_all_users, register_user
 
 # Setup logging
 logger = logging.getLogger("app")
@@ -298,7 +299,12 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <h1 class="text-3xl font-extrabold font-outfit tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
                     ⚡ Synthara Portal
                 </h1>
-                <p class="text-slate-400 text-sm mt-2">Enter credentials to unlock secure RAG Workspace</p>
+                <p class="text-slate-400 text-sm mt-2">Enterprise RAG Workspace • Secure Authentication</p>
+                <div class="mt-3 flex flex-wrap gap-1.5 justify-center text-[10px] text-slate-400">
+                    <span class="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">Admin: admin/admin123</span>
+                    <span class="px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-300">Manager: manager/mgr123</span>
+                    <span class="px-2 py-0.5 rounded bg-pink-500/10 border border-pink-500/20 text-pink-300">Compliance: compliance/comp123</span>
+                </div>
             </div>
             
             <div class="space-y-5">
@@ -318,7 +324,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
                             <i class="fa-solid fa-lock"></i>
                         </span>
-                        <input type="password" id="password" value="password" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-xl py-3 pl-10 pr-4 text-white neomorphic-depth placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="Enter password">
+                        <input type="password" id="password" value="admin123" class="w-full bg-[#0d1224]/80 border border-indigo-500/20 rounded-xl py-3 pl-10 pr-4 text-white neomorphic-depth placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="Enter password">
                     </div>
                 </div>
                 
@@ -347,15 +353,20 @@ HTML_CONTENT = """<!DOCTYPE html>
                 </div>
             </div>
             
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 flex-wrap">
+                <span id="user-badge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-circle-user text-indigo-400"></i>
+                    <span id="header-user-name">Administrator</span>
+                    <span id="header-clearance-pill" class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">Compliance</span>
+                </span>
                 <span id="api-status-badge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-slate-900 border border-indigo-500/30 text-emerald-400 flex items-center gap-1.5 shadow-[0_0_15px_rgba(99,102,241,0.25)] hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition duration-300">
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                     API Active
                 </span>
-                <button onclick="toggleSidebar()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-indigo-400 hover:text-white rounded-xl text-xs font-semibold transition mr-2"><i class="fa-solid fa-sidebar mr-1.5"></i> Sidebar</button>
-                <button onclick="toggleTheme()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-cyan-400 hover:text-white rounded-xl text-xs font-semibold transition mr-2"><i class="fa-solid fa-circle-half-stroke mr-1.5"></i> Theme</button>
+                <button onclick="toggleSidebar()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-indigo-400 hover:text-white rounded-xl text-xs font-semibold transition"><i class="fa-solid fa-sidebar mr-1.5"></i> Sidebar</button>
+                <button onclick="toggleTheme()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-cyan-400 hover:text-white rounded-xl text-xs font-semibold transition"><i class="fa-solid fa-circle-half-stroke mr-1.5"></i> Theme</button>
                 <button onclick="handleLogout()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition">
-                    <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Exit Portal
+                    <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Exit
                 </button>
             </div>
         </header>
@@ -917,28 +928,94 @@ HTML_CONTENT = """<!DOCTYPE html>
             document.getElementById('login-error').classList.add('hidden');
         });
 
-        // Login flow
-        function handleLogin() {
-            const user = document.getElementById('username').value;
+        let authToken = localStorage.getItem("synthara_auth_token") || null;
+        let currentUser = null;
+
+        function applyUserProfile(user) {
+            if (!user) return;
+            currentUser = user;
+            const nameEl = document.getElementById('header-user-name');
+            const pillEl = document.getElementById('header-clearance-pill');
+            if (nameEl) nameEl.innerText = user.full_name || user.username;
+            if (pillEl) pillEl.innerText = user.role || user.clearance || "Employee";
+            
+            // Sync clearance select dropdown
+            const clearanceSel = document.getElementById('clearance-select');
+            if (clearanceSel && user.clearance) {
+                clearanceSel.value = user.clearance;
+                clearanceSel.dispatchEvent(new Event('change'));
+            }
+        }
+
+        // Login flow with JWT token authentication
+        async function handleLogin() {
+            const user = document.getElementById('username').value.trim();
             const pass = document.getElementById('password').value;
             const errDiv = document.getElementById('login-error');
             
-            if (user === 'admin' && pass === 'password') {
-                isLoggedIn = true;
-                document.getElementById('login-container').classList.add('hidden');
-                document.getElementById('dashboard-container').classList.remove('hidden');
-                fetchDocuments();
-            } else {
-                errDiv.innerText = "Invalid credentials. Hint: admin / password.";
+            if (!user || !pass) {
+                errDiv.innerText = "Please enter username and password.";
                 errDiv.classList.remove('hidden');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    authToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem("synthara_auth_token", authToken);
+                    localStorage.setItem("synthara_user", JSON.stringify(currentUser));
+                    
+                    applyUserProfile(currentUser);
+                    isLoggedIn = true;
+                    document.getElementById('login-container').classList.add('hidden');
+                    document.getElementById('dashboard-container').classList.remove('hidden');
+                    fetchDocuments();
+                    showToast(`Authenticated as ${currentUser.full_name || currentUser.username} (${currentUser.role})`);
+                } else {
+                    const errData = await res.json().catch(() => ({}));
+                    errDiv.innerText = errData.detail || "Invalid credentials. Hint: admin / admin123";
+                    errDiv.classList.remove('hidden');
+                }
+            } catch (e) {
+                // Offline fallback authentication
+                if ((user === 'admin' && (pass === 'admin123' || pass === 'password')) || 
+                    (user === 'manager' && pass === 'mgr123') ||
+                    (user === 'employee' && pass === 'emp123') ||
+                    (user === 'compliance' && pass === 'comp123')) {
+                    const roles = { admin: "Admin", manager: "Manager", employee: "Employee", compliance: "Compliance Officer" };
+                    const clearances = { admin: "Compliance Officer", manager: "Manager", employee: "Employee", compliance: "Compliance Officer" };
+                    currentUser = { username: user, full_name: user.toUpperCase(), role: roles[user], clearance: clearances[user] };
+                    applyUserProfile(currentUser);
+                    isLoggedIn = true;
+                    document.getElementById('login-container').classList.add('hidden');
+                    document.getElementById('dashboard-container').classList.remove('hidden');
+                    fetchDocuments();
+                    showToast(`Offline Session: Welcome ${currentUser.role}`);
+                } else {
+                    errDiv.innerText = "Invalid credentials. Hint: admin / admin123";
+                    errDiv.classList.remove('hidden');
+                }
             }
         }
         
         function handleLogout() {
             isLoggedIn = false;
+            authToken = null;
+            currentUser = null;
+            localStorage.removeItem("synthara_auth_token");
+            localStorage.removeItem("synthara_user");
             document.getElementById('login-container').classList.remove('hidden');
             document.getElementById('dashboard-container').classList.add('hidden');
             document.getElementById('login-error').classList.add('hidden');
+            showToast("Logged out securely.");
         }
 
         // Switch Workspace Tabs
@@ -1558,6 +1635,46 @@ async def api_reset():
 async def api_feedback(payload: Dict[str, str]):
     # Save feedback rating
     return JSONResponse(content={"status": "logged"})
+
+@app.post("/api/auth/login")
+async def api_auth_login(payload: Dict[str, Any]):
+    username = payload.get("username", "")
+    password = payload.get("password", "")
+    user = authenticate_user(username, password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    token = create_jwt_token(user)
+    return JSONResponse(content={"token": token, "user": user})
+
+@app.get("/api/auth/me")
+async def api_auth_me(token: Optional[str] = None):
+    if not token:
+        raise HTTPException(status_code=401, detail="Token required.")
+    payload = verify_jwt_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token.")
+    return JSONResponse(content={"user": payload})
+
+@app.get("/api/auth/users")
+async def api_auth_users():
+    return JSONResponse(content=get_all_users())
+
+@app.post("/api/auth/register")
+async def api_auth_register(payload: Dict[str, Any]):
+    try:
+        new_user = register_user(
+            username=payload.get("username", ""),
+            password=payload.get("password", ""),
+            full_name=payload.get("full_name", ""),
+            role=payload.get("role", "Employee"),
+            department=payload.get("department", "General")
+        )
+        return JSONResponse(content={"status": "registered", "user": new_user})
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 import threading
 import sys
