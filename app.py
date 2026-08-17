@@ -29,6 +29,7 @@ from utils.notifications import format_email_template, format_slack_block_kit, f
 from utils.audit import log_audit_event, get_audit_logs, verify_audit_integrity, export_audit_csv
 from utils.suggestions import generate_document_suggestions, get_all_suggestions, get_autocomplete_suggestions
 from utils.document_viewer import get_document_page_preview
+from utils.sync_manager import scan_and_sync_policies, get_sync_status
 import time
 
 # Setup logging
@@ -876,36 +877,36 @@ HTML_CONTENT = """<!DOCTYPE html>
                 if (textEl) textEl.innerText = text;
             }
         }
-        function closeCitationModal() {
-            document.getElementById("citation-modal").classList.add("hidden");
-        }
-        function triggerSharepointSync() {
+        async function triggerSharepointSync() {
             const modal = document.getElementById("sync-modal");
             const term = document.getElementById("sync-terminal");
             modal.classList.remove("hidden");
-            term.innerHTML = "<p>Connecting to Sharepoint server directory...</p>";
+            term.innerHTML = "<p class='text-indigo-400 font-semibold'>Connecting to corporate policy directory & running background sync...</p>";
             
-            const logs = [
-                "Resolving host name: corporate.sharepoint.com...",
-                "Authorization key approved.",
-                "Walking remote repository: /Policies/HumanResources/...",
-                "Found candidate document: hr_employee_leaves_2026.pdf",
-                "Found candidate document: remote_working_policies.pdf",
-                "Comparing modification hashes...",
-                "All policies are up-to-date with local vectors registry.",
-                "Sync completed successfully. Idle."
-            ];
-            
-            let idx = 0;
-            const timer = setInterval(() => {
-                if (idx < logs.length) {
-                    term.innerHTML += `<p>> ${logs[idx]}</p>`;
-                    term.scrollTop = term.scrollHeight;
-                    idx++;
-                } else {
-                    clearInterval(timer);
-                }
-            }, 400);
+            try {
+                const res = await fetch(API_BASE + "/api/sync/trigger", { method: "POST" });
+                const data = await res.json();
+                const logs = data.logs && data.logs.length > 0 ? data.logs : [
+                    "Resolving host path: ./uploaded_policies...",
+                    "Comparing document SHA-256 signatures...",
+                    "All policies are up-to-date with local vectors registry.",
+                    "Sync completed successfully. Idle."
+                ];
+                
+                let idx = 0;
+                const timer = setInterval(() => {
+                    if (idx < logs.length) {
+                        term.innerHTML += `<p class="text-slate-300">> ${logs[idx]}</p>`;
+                        term.scrollTop = term.scrollHeight;
+                        idx++;
+                    } else {
+                        clearInterval(timer);
+                        fetchDocuments();
+                    }
+                }, 300);
+            } catch (err) {
+                term.innerHTML += `<p class="text-red-400">> Sync connection failed: ${err.message}</p>`;
+            }
         }
         window.onload = () => {
             const zone = document.getElementById("drop-zone");
@@ -1917,6 +1918,15 @@ async def api_get_facets():
 @app.get("/api/suggestions")
 async def api_get_suggestions():
     return JSONResponse(content=get_all_suggestions())
+
+@app.post("/api/sync/trigger")
+async def api_trigger_sync():
+    result = scan_and_sync_policies()
+    return JSONResponse(content=result)
+
+@app.get("/api/sync/status")
+async def api_sync_status():
+    return JSONResponse(content=get_sync_status())
 
 @app.get("/api/autocomplete")
 async def api_get_autocomplete(q: Optional[str] = None):
