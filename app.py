@@ -330,18 +330,22 @@ HTML_CONTENT = """<!DOCTYPE html>
     <div id="mouse-glow-mesh" class="absolute w-[250px] h-[250px] rounded-full pointer-events-none transition-all duration-500 ease-out opacity-0 z-0 bg-gradient-to-r from-indigo-500/10 to-cyan-500/0 blur-[60px]"></div>
     <div class="glow-orb bottom-10 right-10 animate-pulse" style="animation-duration: 8s;"></div>
 
-    <!-- LOGIN SCREEN -->
-    <div id="login-container" style="display: flex;" class="fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/90 backdrop-blur-md">
-        <div class="glass-panel p-8 md:p-10 rounded-2xl w-full max-w-md shadow-2xl shadow-indigo-950/20 border border-indigo-500/20">
+    <!-- LOGIN MODAL (HIDDEN BY DEFAULT) -->
+    <div id="login-container" style="display: none;" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/90 backdrop-blur-md">
+        <div class="glass-panel p-8 md:p-10 rounded-2xl w-full max-w-md shadow-2xl shadow-indigo-950/20 border border-indigo-500/20 relative">
+            <button onclick="closeLoginModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white transition">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
             <div class="text-center mb-6">
-                <h1 class="text-3xl font-extrabold font-outfit tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                    ⚡ Synthara Portal
+                <h1 class="text-2xl font-extrabold font-outfit tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                    ⚡ Switch Account
                 </h1>
-                <p class="text-slate-400 text-xs mt-1.5">Enterprise RAG Workspace • Secure Authentication</p>
-                <div class="mt-4 flex flex-wrap gap-2 justify-center text-[11px]">
-                    <button type="button" onclick="quickFill('admin', 'admin123')" class="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 font-semibold transition cursor-pointer active:scale-95">⚡ Admin</button>
-                    <button type="button" onclick="quickFill('manager', 'mgr123')" class="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 font-semibold transition cursor-pointer active:scale-95">👔 Manager</button>
-                    <button type="button" onclick="quickFill('compliance', 'comp123')" class="px-2.5 py-1 rounded-lg bg-pink-500/15 hover:bg-pink-500/30 border border-pink-500/30 text-pink-300 font-semibold transition cursor-pointer active:scale-95">🛡️ Compliance</button>
+                <p class="text-slate-400 text-xs mt-1">Select an enterprise role or enter credentials</p>
+                <div class="mt-3 flex flex-wrap gap-2 justify-center text-[11px]">
+                    <button type="button" onclick="switchRole('admin'); closeLoginModal();" class="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 font-semibold transition cursor-pointer">⚡ Admin</button>
+                    <button type="button" onclick="switchRole('manager'); closeLoginModal();" class="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 font-semibold transition cursor-pointer">👔 Manager</button>
+                    <button type="button" onclick="switchRole('compliance'); closeLoginModal();" class="px-2.5 py-1 rounded-lg bg-pink-500/15 hover:bg-pink-500/30 border border-pink-500/30 text-pink-300 font-semibold transition cursor-pointer">🛡️ Compliance</button>
+                    <button type="button" onclick="switchRole('employee'); closeLoginModal();" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold transition cursor-pointer">👤 Employee</button>
                 </div>
             </div>
             
@@ -366,23 +370,16 @@ HTML_CONTENT = """<!DOCTYPE html>
                     </div>
                 </div>
                 
-                <button type="button" id="login-btn" onclick="handleLogin()" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold font-outfit rounded-xl shadow-lg shadow-indigo-500/20 active:translate-y-0.5 transition duration-150 cursor-pointer">
-                    🚀 Enter Workspace
+                <button type="button" id="login-btn" onclick="handleLogin()" class="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold font-outfit rounded-xl shadow-lg shadow-indigo-500/20 active:translate-y-0.5 transition duration-150 cursor-pointer">
+                    🚀 Switch & Authenticate
                 </button>
-                
-                <div class="pt-2 text-center">
-                    <button type="button" onclick="enterDirectly('admin')" class="text-xs text-indigo-400 hover:text-cyan-300 font-medium transition cursor-pointer underline underline-offset-4">
-                        ⚡ Quick Access: Enter as Admin Directly
-                    </button>
-                </div>
-                
                 <div id="login-error" class="hidden text-red-400 text-xs text-center font-medium mt-1"></div>
             </div>
         </div>
     </div>
 
-    <!-- MAIN DASHBOARD (HIDDEN UNTIL LOGGED IN) -->
-    <div id="dashboard-container" style="display: none;" class="min-h-screen flex flex-col max-w-7xl mx-auto p-6 relative z-10">
+    <!-- MAIN DASHBOARD (DEFAULT ACTIVE) -->
+    <div id="dashboard-container" class="min-h-screen flex flex-col max-w-7xl mx-auto p-6 relative z-10">
         
         <!-- HEADER -->
         <header class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border-b border-indigo-950 pb-5">
@@ -399,19 +396,26 @@ HTML_CONTENT = """<!DOCTYPE html>
             </div>
             
             <div class="flex items-center gap-3 flex-wrap">
-                <span id="user-badge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-indigo-950/40 border border-indigo-500/30 text-indigo-300 flex items-center gap-1.5 shadow-sm">
+                <!-- Role Switcher -->
+                <div class="flex items-center gap-2 bg-[#0d1224]/80 border border-indigo-500/30 rounded-full px-3 py-1 text-xs shadow-sm">
                     <i class="fa-solid fa-circle-user text-indigo-400"></i>
-                    <span id="header-user-name">Administrator</span>
-                    <span id="header-clearance-pill" class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono">Compliance</span>
-                </span>
+                    <span id="header-user-name" class="font-bold text-slate-200">Admin</span>
+                    <select id="role-quick-select" onchange="switchRole(this.value)" class="bg-[#121832] border border-indigo-500/20 text-indigo-300 text-[11px] font-semibold rounded-lg px-2 py-0.5 focus:outline-none cursor-pointer">
+                        <option value="admin" selected>Admin (Compliance Officer)</option>
+                        <option value="manager">Manager (Internal Teams)</option>
+                        <option value="compliance">Elena Rostova (Compliance)</option>
+                        <option value="employee">Sarah Jenkins (Employee)</option>
+                    </select>
+                </div>
+
                 <span id="api-status-badge" class="px-3 py-1.5 rounded-full text-xs font-bold bg-slate-900 border border-indigo-500/30 text-emerald-400 flex items-center gap-1.5 shadow-[0_0_15px_rgba(99,102,241,0.25)] hover:shadow-[0_0_25px_rgba(6,182,212,0.4)] transition duration-300">
                     <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                     API Active
                 </span>
-                <button onclick="toggleSidebar()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-indigo-400 hover:text-white rounded-xl text-xs font-semibold transition"><i class="fa-solid fa-sidebar mr-1.5"></i> Sidebar</button>
-                <button onclick="toggleTheme()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-cyan-400 hover:text-white rounded-xl text-xs font-semibold transition"><i class="fa-solid fa-circle-half-stroke mr-1.5"></i> Theme</button>
-                <button onclick="handleLogout()" class="px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition">
-                    <i class="fa-solid fa-right-from-bracket mr-1.5"></i> Exit
+                <button onclick="toggleSidebar()" class="px-3.5 py-1.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-indigo-400 hover:text-white rounded-xl text-xs font-semibold transition"><i class="fa-solid fa-sidebar mr-1"></i> Sidebar</button>
+                <button onclick="toggleTheme()" class="px-3.5 py-1.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 text-cyan-400 hover:text-white rounded-xl text-xs font-semibold transition"><i class="fa-solid fa-circle-half-stroke mr-1"></i> Theme</button>
+                <button onclick="openLoginModal()" class="px-3.5 py-1.5 bg-indigo-950/40 border border-indigo-500/30 hover:bg-indigo-900/40 text-indigo-300 rounded-xl text-xs font-semibold transition">
+                    <i class="fa-solid fa-user-gear mr-1"></i> Auth
                 </button>
             </div>
         </header>
@@ -1031,8 +1035,15 @@ HTML_CONTENT = """<!DOCTYPE html>
             document.getElementById('login-error').classList.add('hidden');
         });
 
-        let authToken = localStorage.getItem("synthara_auth_token") || null;
-        let currentUser = null;
+        let authToken = localStorage.getItem("synthara_auth_token") || ("synthara_admin_session_" + Date.now());
+        let currentUser = {
+            username: "admin",
+            full_name: "Portal Administrator",
+            role: "Admin",
+            clearance: "Compliance Officer",
+            department: "Executive Security"
+        };
+        let isLoggedIn = true;
 
         function showWorkspace() {
             const loginEl = document.getElementById('login-container');
@@ -1048,16 +1059,41 @@ HTML_CONTENT = """<!DOCTYPE html>
         }
 
         function showLogin() {
+            openLoginModal();
+        }
+
+        function openLoginModal() {
             const loginEl = document.getElementById('login-container');
-            const dashEl = document.getElementById('dashboard-container');
             if (loginEl) {
                 loginEl.classList.remove('hidden');
                 loginEl.style.display = 'flex';
             }
-            if (dashEl) {
-                dashEl.classList.add('hidden');
-                dashEl.style.display = 'none';
+        }
+
+        function closeLoginModal() {
+            const loginEl = document.getElementById('login-container');
+            if (loginEl) {
+                loginEl.classList.add('hidden');
+                loginEl.style.display = 'none';
             }
+        }
+
+        function switchRole(roleKey) {
+            const roles = {
+                admin: { username: "admin", full_name: "Portal Administrator", role: "Admin", clearance: "Compliance Officer" },
+                manager: { username: "manager", full_name: "Marcus Vance", role: "Manager", clearance: "Manager" },
+                compliance: { username: "compliance", full_name: "Elena Rostova", role: "Compliance Officer", clearance: "Compliance Officer" },
+                employee: { username: "employee", full_name: "Sarah Jenkins", role: "Employee", clearance: "Employee" }
+            };
+            const user = roles[roleKey] || roles['admin'];
+            currentUser = user;
+            authToken = "role_session_" + roleKey + "_" + Date.now();
+            localStorage.setItem("synthara_auth_token", authToken);
+            localStorage.setItem("synthara_user", JSON.stringify(currentUser));
+            applyUserProfile(currentUser);
+            const selectEl = document.getElementById('role-quick-select');
+            if (selectEl) selectEl.value = roleKey;
+            showToast(`Active Profile: ${user.full_name} (${user.role})`);
         }
 
         function quickFill(user, pass) {
@@ -1071,22 +1107,9 @@ HTML_CONTENT = """<!DOCTYPE html>
         }
 
         function enterDirectly(roleKey = 'admin') {
-            const users = {
-                admin: { username: "admin", full_name: "Portal Administrator", role: "Admin", clearance: "Compliance Officer" },
-                manager: { username: "manager", full_name: "Marcus Vance", role: "Manager", clearance: "Manager" },
-                compliance: { username: "compliance", full_name: "Elena Rostova", role: "Compliance Officer", clearance: "Compliance Officer" },
-                employee: { username: "employee", full_name: "Sarah Jenkins", role: "Employee", clearance: "Employee" }
-            };
-            const user = users[roleKey] || users['admin'];
-            currentUser = user;
-            authToken = "direct_session_" + Date.now();
-            localStorage.setItem("synthara_auth_token", authToken);
-            localStorage.setItem("synthara_user", JSON.stringify(currentUser));
-            applyUserProfile(currentUser);
-            isLoggedIn = true;
+            switchRole(roleKey);
+            closeLoginModal();
             showWorkspace();
-            fetchDocuments();
-            showToast(`Welcome ${user.full_name} (${user.role})`);
         }
 
         function applyUserProfile(user) {
@@ -1122,7 +1145,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 return;
             }
             
-            if (btn) btn.innerHTML = `<i class="fa-solid fa-circle-notch animate-spin"></i> Entering Workspace...`;
+            if (btn) btn.innerHTML = `<i class="fa-solid fa-circle-notch animate-spin"></i> Authenticating...`;
             
             try {
                 const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -1140,13 +1163,14 @@ HTML_CONTENT = """<!DOCTYPE html>
                     
                     applyUserProfile(currentUser);
                     isLoggedIn = true;
+                    closeLoginModal();
                     showWorkspace();
                     fetchDocuments();
                     showToast(`Authenticated as ${currentUser.full_name || currentUser.username} (${currentUser.role})`);
                 } else {
                     const errData = await res.json().catch(() => ({}));
                     if (errDiv) {
-                        errDiv.innerText = errData.detail || "Invalid credentials. Click a role badge above or use admin / admin123";
+                        errDiv.innerText = errData.detail || "Invalid credentials. Click a role badge above.";
                         errDiv.classList.remove('hidden');
                     }
                 }
@@ -1164,24 +1188,25 @@ HTML_CONTENT = """<!DOCTYPE html>
                 localStorage.setItem("synthara_user", JSON.stringify(currentUser));
                 applyUserProfile(currentUser);
                 isLoggedIn = true;
+                closeLoginModal();
                 showWorkspace();
                 fetchDocuments();
                 showToast(`Session Active: Welcome ${currentUser.role}`);
             } finally {
-                if (btn) btn.innerHTML = `🚀 Enter Workspace`;
+                if (btn) btn.innerHTML = `🚀 Switch & Authenticate`;
             }
         }
         
         function handleLogout() {
-            isLoggedIn = false;
-            authToken = null;
-            currentUser = null;
-            localStorage.removeItem("synthara_auth_token");
-            localStorage.removeItem("synthara_user");
-            showLogin();
-            const errDiv = document.getElementById('login-error');
-            if (errDiv) errDiv.classList.add('hidden');
-            showToast("Logged out securely.");
+            openLoginModal();
+        }
+
+        // Auto initialize on script execution
+        try {
+            applyUserProfile(currentUser);
+            fetchDocuments();
+        } catch (e) {
+            console.warn("Auto init:", e);
         }
 
         // Switch Workspace Tabs
