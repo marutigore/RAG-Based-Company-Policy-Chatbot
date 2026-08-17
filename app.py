@@ -8,7 +8,7 @@ import os
 import logging
 import json
 import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 import uvicorn
@@ -31,6 +31,7 @@ from utils.suggestions import generate_document_suggestions, get_all_suggestions
 from utils.document_viewer import get_document_page_preview
 from utils.sync_manager import scan_and_sync_policies, get_sync_status
 from utils.ab_testing import select_active_variant, get_ab_prompt, record_ab_metric, get_ab_experiment_summary
+from utils.pii_guardrail import redact_pii, scan_pii, mask_sensitive_query
 import time
 
 # Setup logging
@@ -148,6 +149,8 @@ def run_pipeline(
 ) -> Dict[str, Any]:
     try:
         cleaned_query = validate_query(question)
+        # Apply enterprise PII redaction guardrail
+        cleaned_query, _ = redact_pii(cleaned_query)
     except ValueError as e:
         return {"answer": str(e), "citations": [], "evaluation": {"faithfulness": {"score": 0.0, "reasoning": str(e)}, "relevancy": {"score": 0.0, "reasoning": str(e)}}}
 
@@ -1949,6 +1952,17 @@ async def api_get_suggestions():
 async def api_trigger_sync():
     result = scan_and_sync_policies()
     return JSONResponse(content=result)
+
+@app.post("/api/guardrail/scan")
+async def api_guardrail_scan(payload: Dict[str, Any]):
+    text = payload.get("text", "")
+    redacted, detected = redact_pii(text)
+    return JSONResponse(content={
+        "original_length": len(text),
+        "redacted_text": redacted,
+        "pii_detected": detected,
+        "is_safe": len(detected) == 0
+    })
 
 @app.get("/api/sync/status")
 async def api_sync_status():
