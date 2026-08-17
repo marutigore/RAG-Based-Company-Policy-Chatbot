@@ -22,6 +22,7 @@ from utils.validator import validate_query, evaluate_faithfulness, evaluate_answ
 from utils.auth import authenticate_user, create_jwt_token, verify_jwt_token, get_all_users, register_user
 from utils.memory import create_session, add_message, get_session_messages, list_sessions, delete_session, build_contextual_query
 from utils.analytics import record_query_telemetry, get_analytics_summary
+from utils.feedback import record_feedback, get_feedback_summary, list_feedback_records
 import time
 
 # Setup logging
@@ -753,6 +754,30 @@ HTML_CONTENT = """<!DOCTYPE html>
         }
         function toggleTheme() {
             document.body.classList.toggle("light-theme");
+        }
+        async function handleRating(answerText, type, btn) {
+            const rating = type === "UP" ? 1 : -1;
+            const parent = btn.parentElement;
+            if (parent) {
+                parent.querySelectorAll("button").forEach(b => b.classList.remove("text-emerald-400", "text-red-400", "bg-indigo-500/20"));
+                btn.classList.add(rating > 0 ? "text-emerald-400" : "text-red-400", "bg-indigo-500/20");
+            }
+            try {
+                await fetch(API_BASE + '/api/feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        query: "Policy Question",
+                        answer: answerText,
+                        rating: rating,
+                        user_id: currentUser ? currentUser.username : "anonymous",
+                        session_id: typeof currentSessionId !== "undefined" ? currentSessionId : null
+                    })
+                });
+                showToast(rating > 0 ? "Thank you! Marked as helpful 👍" : "Feedback logged: Flagged for review 👎");
+            } catch (e) {
+                showToast("Feedback saved locally.");
+            }
         }
         function exportAnswer(select, answer) {
             const format = select.value;
@@ -1736,9 +1761,29 @@ async def api_reset():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/feedback")
-async def api_feedback(payload: Dict[str, str]):
-    # Save feedback rating
-    return JSONResponse(content={"status": "logged"})
+async def api_feedback(payload: Dict[str, Any]):
+    query = payload.get("query", "")
+    answer = payload.get("answer", "")
+    rating = int(payload.get("rating", 1))
+    comments = payload.get("comments")
+    issue_type = payload.get("issue_type")
+    user_id = payload.get("user_id", "anonymous")
+    session_id = payload.get("session_id")
+    
+    rec = record_feedback(
+        query=query,
+        answer=answer,
+        rating=rating,
+        comments=comments,
+        issue_type=issue_type,
+        user_id=user_id,
+        session_id=session_id
+    )
+    return JSONResponse(content={"status": "logged", "feedback": rec})
+
+@app.get("/api/feedback/summary")
+async def api_feedback_summary():
+    return JSONResponse(content=get_feedback_summary())
 
 @app.post("/api/auth/login")
 async def api_auth_login(payload: Dict[str, Any]):
