@@ -26,6 +26,7 @@ from utils.feedback import record_feedback, get_feedback_summary, list_feedback_
 from utils.versioning import register_document_version, get_document_versions, get_active_version_tag
 from utils.translator import detect_language, get_supported_languages, build_multilingual_system_prompt
 from utils.notifications import format_email_template, format_slack_block_kit, format_teams_card, dispatch_webhook
+from utils.audit import log_audit_event, get_audit_logs, verify_audit_integrity, export_audit_csv
 import time
 
 # Setup logging
@@ -1726,6 +1727,20 @@ async def api_upload(
             c["metadata"]["hash"] = ver_info.get("hash", "")
             
         add_documents_to_db(chunks)
+        
+        # Log to audit trail
+        log_audit_event(
+            event_type="DOCUMENT_INGESTED",
+            user_id="admin",
+            clearance="Compliance Officer",
+            details={
+                "filename": file.filename,
+                "chunks": len(chunks),
+                "pages": len(pages),
+                "version": ver_info.get("version", "v1.0")
+            }
+        )
+        
         return JSONResponse(content={
             "status": "indexed",
             "chunks_count": len(chunks),
@@ -1811,6 +1826,20 @@ async def api_query(payload: Dict[str, Any]):
         session_id=session_id
     )
     
+    # Record audit trail event
+    log_audit_event(
+        event_type="QUERY_EXECUTED",
+        user_id=user_id,
+        clearance=clearance,
+        details={
+            "query": query,
+            "category": category,
+            "faithfulness": faith_score,
+            "relevancy": rel_score,
+            "cost": cost
+        }
+    )
+    
     log_evaluation(
         query=query,
         answer=res["answer"],
@@ -1827,6 +1856,22 @@ async def api_query(payload: Dict[str, Any]):
         "language": lang_info,
         "session_id": session_id
     })
+
+@app.get("/api/audit/logs")
+async def api_get_audit_logs(limit: int = 50):
+    return JSONResponse(content=get_audit_logs(limit=limit))
+
+@app.get("/api/audit/verify")
+async def api_verify_audit():
+    return JSONResponse(content=verify_audit_integrity())
+
+@app.get("/api/audit/export")
+async def api_export_audit(format: str = "csv"):
+    from fastapi.responses import Response
+    if format == "csv":
+        csv_data = export_audit_csv()
+        return Response(content=csv_data, media_type="text/csv", headers={"Content-Disposition": "attachment; filename=synthara_compliance_audit.csv"})
+    return JSONResponse(content=get_audit_logs(limit=1000))
 
 @app.get("/api/languages")
 async def api_get_languages():
@@ -1906,6 +1951,12 @@ async def api_delete_document(source_name: str):
 async def api_reset():
     try:
         reset_db()
+        log_audit_event(
+            event_type="DATABASE_RESET",
+            user_id="admin",
+            clearance="Compliance Officer",
+            details={"action": "complete_vector_wipe"}
+        )
         return JSONResponse(content={"status": "reset"})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1929,6 +1980,12 @@ async def api_feedback(payload: Dict[str, Any]):
         user_id=user_id,
         session_id=session_id
     )
+    log_audit_event(
+        event_type="FEEDBACK_SUBMITTED",
+        user_id=user_id,
+        clearance="Employee",
+        details={"rating": rating, "issue_type": issue_type}
+    )
     return JSONResponse(content={"status": "logged", "feedback": rec})
 
 @app.get("/api/feedback/summary")
@@ -1943,6 +2000,12 @@ async def api_auth_login(payload: Dict[str, Any]):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password.")
     token = create_jwt_token(user)
+    log_audit_event(
+        event_type="AUTH_LOGIN",
+        user_id=user["username"],
+        clearance=user.get("clearance", "Employee"),
+        details={"role": user.get("role"), "department": user.get("department")}
+    )
     return JSONResponse(content={"token": token, "user": user})
 
 @app.get("/api/auth/me")
