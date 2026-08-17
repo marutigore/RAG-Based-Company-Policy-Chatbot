@@ -30,6 +30,7 @@ from utils.audit import log_audit_event, get_audit_logs, verify_audit_integrity,
 from utils.suggestions import generate_document_suggestions, get_all_suggestions, get_autocomplete_suggestions
 from utils.document_viewer import get_document_page_preview
 from utils.sync_manager import scan_and_sync_policies, get_sync_status
+from utils.ab_testing import select_active_variant, get_ab_prompt, record_ab_metric, get_ab_experiment_summary
 import time
 
 # Setup logging
@@ -92,7 +93,13 @@ def sanitize_text(text: str) -> str:
 def track_usage(usage) -> None:
     pass
 
-def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]], lang_info: Optional[Dict[str, Any]] = None) -> str:
+def call_llm(
+    question: str,
+    retrieved_chunks: List[Dict[str, Any]],
+    lang_info: Optional[Dict[str, Any]] = None,
+    clearance: str = "Employee",
+    prompt_variant: Optional[str] = None
+) -> str:
     client = config.get_openai_client()
     context_blocks = []
     for idx, chunk in enumerate(retrieved_chunks):
@@ -103,8 +110,11 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]], lang_info: O
 
     context_str = "\n\n".join(context_blocks)
     
-    if lang_info:
+    if prompt_variant in ["A", "B"]:
+        system_prompt, user_prompt = get_ab_prompt(prompt_variant, question, context_str, clearance=clearance)
+    elif lang_info:
         system_prompt = build_multilingual_system_prompt(lang_info)
+        user_prompt = f"Context Excerpts:\n{context_str}\n\nQuestion:\n{question}\n\nGrounded Response:"
     else:
         system_prompt = (
             "You are an expert corporate policy assistant. Your goal is to answer the employee's question "
@@ -112,7 +122,7 @@ def call_llm(question: str, retrieved_chunks: List[Dict[str, Any]], lang_info: O
             "state that you cannot find the answer in the current policy documents. Do not hallucinate.\n\n"
             "At the end of your response, list the citations matching the Excerpt bracket numbers (e.g. [1], [2])."
         )
-    user_prompt = f"Context Excerpts:\n{context_str}\n\nQuestion:\n{question}\n\nGrounded Response:"
+        user_prompt = f"Context Excerpts:\n{context_str}\n\nQuestion:\n{question}\n\nGrounded Response:"
     
     try:
         response = client.chat.completions.create(
@@ -133,7 +143,8 @@ def run_pipeline(
     clearance: str = "Employee",
     lang_info: Optional[Dict[str, Any]] = None,
     category: Optional[str] = None,
-    source_filter: Optional[str] = None
+    source_filter: Optional[str] = None,
+    prompt_variant: Optional[str] = None
 ) -> Dict[str, Any]:
     try:
         cleaned_query = validate_query(question)
@@ -141,7 +152,7 @@ def run_pipeline(
         return {"answer": str(e), "citations": [], "evaluation": {"faithfulness": {"score": 0.0, "reasoning": str(e)}, "relevancy": {"score": 0.0, "reasoning": str(e)}}}
 
     retrieved_chunks = query_db(cleaned_query, k=5, clearance=clearance, category=category, source_filter=source_filter)
-    answer = call_llm(cleaned_query, retrieved_chunks, lang_info=lang_info)
+    answer = call_llm(cleaned_query, retrieved_chunks, lang_info=lang_info, clearance=clearance, prompt_variant=prompt_variant)
     contexts = [chunk["text"] for chunk in retrieved_chunks]
     
     faith_eval = evaluate_faithfulness(contexts, answer)
@@ -1811,15 +1822,16 @@ async def api_query(payload: Dict[str, Any]):
         effective_query = build_contextual_query(query, history)
         add_message(session_id=session_id, role="user", content=query, user_id=user_id)
         
-    # Detect query language
-    lang_info = detect_language(query)
+    # Select A/B Prompt Variant
+    ab_variant = select_active_variant(payload.get("prompt_variant"))
     
     res = run_pipeline(
         effective_query,
         clearance=clearance,
         lang_info=lang_info,
         category=category,
-        source_filter=source_filter
+        source_filter=source_filter,
+        prompt_variant=ab_variant
     )
     
     # Calculate token usage costs & latency
@@ -1856,6 +1868,14 @@ async def api_query(payload: Dict[str, Any]):
         session_id=session_id
     )
     
+    # Record A/B test metric
+    record_ab_metric(
+        variant=ab_variant,
+        latency_ms=latency_ms,
+        faithfulness=faith_score,
+        relevancy=rel_score
+    )
+    
     # Record audit trail event
     log_audit_event(
         event_type="QUERY_EXECUTED",
@@ -1866,7 +1886,8 @@ async def api_query(payload: Dict[str, Any]):
             "category": category,
             "faithfulness": faith_score,
             "relevancy": rel_score,
-            "cost": cost
+            "cost": cost,
+            "prompt_variant": ab_variant
         }
     )
     
@@ -1884,8 +1905,13 @@ async def api_query(payload: Dict[str, Any]):
         "cost": cost,
         "latency_ms": round(latency_ms, 2),
         "language": lang_info,
+        "prompt_variant": ab_variant,
         "session_id": session_id
     })
+
+@app.get("/api/ab-test/metrics")
+async def api_ab_test_metrics():
+    return JSONResponse(content=get_ab_experiment_summary())
 
 @app.get("/api/audit/logs")
 async def api_get_audit_logs(limit: int = 50):
