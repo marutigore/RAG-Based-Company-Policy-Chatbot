@@ -15,7 +15,7 @@ import uvicorn
 
 # Import custom core modules
 import config
-from utils.document_loader import load_pdf
+from utils.document_loader import load_pdf, load_document
 from utils.chunker import split_documents
 from utils.retriever import add_documents_to_db, query_db, reset_db, get_collection, delete_document_from_db
 from utils.validator import validate_query, evaluate_faithfulness, evaluate_answer_relevancy
@@ -428,9 +428,9 @@ HTML_CONTENT = """<!DOCTYPE html>
                     
                     <div id="drop-zone" class="border-2 border-dashed border-indigo-500/25 rounded-xl p-6 text-center hover:border-cyan-500/40 transition duration-200 cursor-pointer bg-[#0d1224]/30">
                         <i class="fa-solid fa-cloud-arrow-up text-3xl text-indigo-400/80 mb-3"></i>
-                        <p class="text-xs font-semibold">Drag & drop policy PDF here</p>
-                        <p class="text-[10px] text-slate-500 mt-1">or click to browse local files</p>
-                        <input type="file" id="file-input" accept=".pdf" class="hidden">
+                        <p class="text-xs font-semibold">Drag & drop Policy Documents</p>
+                        <p class="text-[10px] text-slate-500 mt-1">Supports PDF, DOCX, XLSX, CSV, TXT, MD, HTML</p>
+                        <input type="file" id="file-input" accept=".pdf,.docx,.doc,.xlsx,.csv,.txt,.md,.html" class="hidden">
                     </div>
                     
                     <!-- Progress / Status bar -->
@@ -1592,12 +1592,12 @@ async def api_upload(
         with open(file_path, "wb") as f:
             f.write(await file.read())
             
-        logger.info(f"PDF uploaded to local storage: {file_path}")
-        pages = load_pdf(file_path)
+        logger.info(f"Document uploaded to local storage: {file_path}")
+        pages = load_document(file_path)
         chunks = split_documents(pages, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         
         add_documents_to_db(chunks)
-        return JSONResponse(content={"status": "indexed", "chunks_count": len(chunks)})
+        return JSONResponse(content={"status": "indexed", "chunks_count": len(chunks), "pages_count": len(pages)})
     except Exception as e:
         logger.error(f"Upload and indexing failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
