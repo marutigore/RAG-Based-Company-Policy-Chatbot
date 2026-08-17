@@ -25,6 +25,7 @@ from utils.analytics import record_query_telemetry, get_analytics_summary
 from utils.feedback import record_feedback, get_feedback_summary, list_feedback_records
 from utils.versioning import register_document_version, get_document_versions, get_active_version_tag
 from utils.translator import detect_language, get_supported_languages, build_multilingual_system_prompt
+from utils.notifications import format_email_template, format_slack_block_kit, format_teams_card, dispatch_webhook
 import time
 
 # Setup logging
@@ -790,8 +791,21 @@ HTML_CONTENT = """<!DOCTYPE html>
             const format = select.value;
             if (!format) return;
             let blob, filename;
-            if (format === "md") {
-                blob = new Blob([`# RAG Response\\n\\n${answer}`], {type: "text/markdown"});
+            if (format === "email") {
+                const subject = encodeURIComponent("Synthara Policy Guidance");
+                const body = encodeURIComponent(answer);
+                window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+                select.value = "";
+                showToast("Opening email client...");
+                return;
+            } else if (format === "slack") {
+                const slackText = `*🛡️ Synthara Policy Guidance*\n\n${answer}`;
+                navigator.clipboard.writeText(slackText);
+                select.value = "";
+                showToast("Copied Slack-formatted markdown to clipboard!");
+                return;
+            } else if (format === "md") {
+                blob = new Blob([`# RAG Response\n\n${answer}`], {type: "text/markdown"});
                 filename = "policy_response.md";
             } else if (format === "txt") {
                 blob = new Blob([answer], {type: "text/plain"});
@@ -1497,15 +1511,13 @@ HTML_CONTENT = """<!DOCTYPE html>
                         </button>
                     </div>
                     <select onchange="exportAnswer(this, `${data.answer}`)" class="bg-[#0d1224] border border-slate-800 text-slate-400 hover:text-white text-xs px-2 py-1.5 rounded-lg focus:outline-none transition cursor-pointer">
-                        <option value="">📥 Export answer...</option>
-                        <option value="md">Markdown (.md)</option>
-                        <option value="txt">Text File (.txt)</option>
-                        <option value="json">Raw JSON (.json)</option>
+                        <option value="">📤 Share / Export...</option>
+                        <option value="email">📧 Send via Email</option>
+                        <option value="slack">💬 Copy Slack Format</option>
+                        <option value="md">📝 Markdown (.md)</option>
+                        <option value="txt">📄 Text File (.txt)</option>
+                        <option value="json">📊 Raw JSON (.json)</option>
                     </select>
-                </div>
-                    <button onclick="openFeedbackDrawer('${data.answer}'); handleRating('${data.answer}', 'DOWN', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-red-500/10 border border-slate-800 text-slate-400 hover:text-red-400 text-xs rounded-lg transition">
-                        👎
-                    </button>
                 </div>
             </div>
             `;
@@ -1758,6 +1770,38 @@ async def api_query(payload: Dict[str, Any]):
 @app.get("/api/languages")
 async def api_get_languages():
     return JSONResponse(content=get_supported_languages())
+
+@app.post("/api/share/email")
+async def api_share_email(payload: Dict[str, Any]):
+    query = payload.get("query", "Policy Inquiry")
+    answer = payload.get("answer", "")
+    citations = payload.get("citations", [])
+    data = format_email_template(query, answer, citations)
+    return JSONResponse(content=data)
+
+@app.post("/api/share/slack")
+async def api_share_slack(payload: Dict[str, Any]):
+    query = payload.get("query", "Policy Inquiry")
+    answer = payload.get("answer", "")
+    citations = payload.get("citations", [])
+    webhook_url = payload.get("webhook_url")
+    blocks = format_slack_block_kit(query, answer, citations)
+    if webhook_url:
+        success = dispatch_webhook(webhook_url, blocks)
+        return JSONResponse(content={"status": "dispatched" if success else "failed", "blocks": blocks})
+    return JSONResponse(content={"status": "formatted", "blocks": blocks})
+
+@app.post("/api/share/teams")
+async def api_share_teams(payload: Dict[str, Any]):
+    query = payload.get("query", "Policy Inquiry")
+    answer = payload.get("answer", "")
+    citations = payload.get("citations", [])
+    webhook_url = payload.get("webhook_url")
+    card = format_teams_card(query, answer, citations)
+    if webhook_url:
+        success = dispatch_webhook(webhook_url, card)
+        return JSONResponse(content={"status": "dispatched" if success else "failed", "card": card})
+    return JSONResponse(content={"status": "formatted", "card": card})
 
 @app.get("/api/analytics/summary")
 async def api_analytics_summary():
