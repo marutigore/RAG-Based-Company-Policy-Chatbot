@@ -757,8 +757,15 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <!-- UI Logics & API bindings JS -->
     <script>
-        const API_BASE = "";
-        let isLoggedIn = false;
+        let API_BASE = "";
+        try {
+            if (window.location.port && window.location.port !== "8000") {
+                API_BASE = window.location.protocol + "//" + window.location.hostname + ":8000";
+            }
+        } catch (e) {
+            API_BASE = "http://localhost:8000";
+        }
+        let isLoggedIn = true;
         function closeResetModal() {
             document.getElementById("reset-modal").classList.add("hidden");
             document.getElementById("reset-confirm-input").value = "";
@@ -773,7 +780,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 return;
             }
             try {
-                const res = await fetch("/api/reset", { method: "POST" });
+                const res = await fetch(API_BASE + "/api/reset", { method: "POST" });
                 if (res.ok) {
                     showToast("Database registry cleared.");
                     closeResetModal();
@@ -957,7 +964,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         async function submitDetailedFeedback() {
             const checks = document.querySelectorAll("input[name='fb-issue']:checked");
             const issues = Array.from(checks).map(c => c.value);
-            await fetch("/api/feedback", {
+            await fetch(API_BASE + "/api/feedback", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ answer: currentFeedbackAnswer, rating: "DOWN", issues: issues })
