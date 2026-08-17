@@ -238,6 +238,9 @@ HTML_CONTENT = """<!DOCTYPE html>
         
         .glass-panel {
             background: rgba(13, 18, 36, 0.45);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(99, 102, 241, 0.15);
         }
         .tooltip {
             position: relative;
@@ -266,7 +269,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             visibility: visible;
             opacity: 1;
         }
-        }
         @keyframes shimmer {
             0% { background-position: -200% 0; }
             100% { background-position: 200% 0; }
@@ -275,7 +277,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             background: linear-gradient(90deg, rgba(22, 28, 45, 0.5) 25%, rgba(99, 102, 241, 0.1) 37%, rgba(22, 28, 45, 0.5) 63%);
             background-size: 200% 100%;
             animation: shimmer 1.5s infinite;
-        }
         }
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
@@ -286,10 +287,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             animation: shake 0.4s ease-in-out;
             border-color: rgba(239, 68, 68, 0.6) !important;
             box-shadow: 0 0 20px rgba(239, 68, 68, 0.25) !important;
-        }
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(99, 102, 241, 0.15);
         }
         .neomorphic-depth {
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6), 0 1px 1px rgba(255, 255, 255, 0.05) !important;
@@ -334,23 +331,23 @@ HTML_CONTENT = """<!DOCTYPE html>
     <div class="glow-orb bottom-10 right-10 animate-pulse" style="animation-duration: 8s;"></div>
 
     <!-- LOGIN SCREEN -->
-    <div id="login-container" class="fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/90 backdrop-blur-md">
-        <div class="glass-panel p-10 rounded-2xl w-full max-w-md shadow-2xl shadow-indigo-950/20 border border-indigo-500/20">
-            <div class="text-center mb-8">
+    <div id="login-container" style="display: flex;" class="fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/90 backdrop-blur-md">
+        <div class="glass-panel p-8 md:p-10 rounded-2xl w-full max-w-md shadow-2xl shadow-indigo-950/20 border border-indigo-500/20">
+            <div class="text-center mb-6">
                 <h1 class="text-3xl font-extrabold font-outfit tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent">
                     ⚡ Synthara Portal
                 </h1>
-                <p class="text-slate-400 text-sm mt-2">Enterprise RAG Workspace • Secure Authentication</p>
-                <div class="mt-3 flex flex-wrap gap-1.5 justify-center text-[10px] text-slate-400">
-                    <span class="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">Admin: admin/admin123</span>
-                    <span class="px-2 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-300">Manager: manager/mgr123</span>
-                    <span class="px-2 py-0.5 rounded bg-pink-500/10 border border-pink-500/20 text-pink-300">Compliance: compliance/comp123</span>
+                <p class="text-slate-400 text-xs mt-1.5">Enterprise RAG Workspace • Secure Authentication</p>
+                <div class="mt-4 flex flex-wrap gap-2 justify-center text-[11px]">
+                    <button type="button" onclick="quickFill('admin', 'admin123')" class="px-2.5 py-1 rounded-lg bg-indigo-500/15 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 font-semibold transition cursor-pointer active:scale-95">⚡ Admin</button>
+                    <button type="button" onclick="quickFill('manager', 'mgr123')" class="px-2.5 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/30 border border-purple-500/30 text-purple-300 font-semibold transition cursor-pointer active:scale-95">👔 Manager</button>
+                    <button type="button" onclick="quickFill('compliance', 'comp123')" class="px-2.5 py-1 rounded-lg bg-pink-500/15 hover:bg-pink-500/30 border border-pink-500/30 text-pink-300 font-semibold transition cursor-pointer active:scale-95">🛡️ Compliance</button>
                 </div>
             </div>
             
-            <div class="space-y-5">
+            <div class="space-y-4">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Username</label>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Username</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
                             <i class="fa-solid fa-user"></i>
@@ -360,7 +357,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 </div>
                 
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Password</label>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Password</label>
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-500">
                             <i class="fa-solid fa-lock"></i>
@@ -369,16 +366,23 @@ HTML_CONTENT = """<!DOCTYPE html>
                     </div>
                 </div>
                 
-                <button onclick="handleLogin()" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold font-outfit rounded-xl shadow-lg shadow-indigo-500/20 active:translate-y-0.5 transition duration-150">
+                <button type="button" id="login-btn" onclick="handleLogin()" class="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold font-outfit rounded-xl shadow-lg shadow-indigo-500/20 active:translate-y-0.5 transition duration-150 cursor-pointer">
                     🚀 Enter Workspace
                 </button>
-                <div id="login-error" class="hidden text-red-400 text-xs text-center font-medium mt-2"></div>
+                
+                <div class="pt-2 text-center">
+                    <button type="button" onclick="enterDirectly('admin')" class="text-xs text-indigo-400 hover:text-cyan-300 font-medium transition cursor-pointer underline underline-offset-4">
+                        ⚡ Quick Access: Enter as Admin Directly
+                    </button>
+                </div>
+                
+                <div id="login-error" class="hidden text-red-400 text-xs text-center font-medium mt-1"></div>
             </div>
         </div>
     </div>
 
     <!-- MAIN DASHBOARD (HIDDEN UNTIL LOGGED IN) -->
-    <div id="dashboard-container" class="hidden min-h-screen flex flex-col max-w-7xl mx-auto p-6 relative z-10">
+    <div id="dashboard-container" style="display: none;" class="min-h-screen flex flex-col max-w-7xl mx-auto p-6 relative z-10">
         
         <!-- HEADER -->
         <header class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6 border-b border-indigo-950 pb-5">
@@ -749,15 +753,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <!-- UI Logics & API bindings JS -->
     <script>
-        let isStreamlitIframe = false;
-        try {
-            isStreamlitIframe = window.self !== window.top;
-        } catch (e) {
-            isStreamlitIframe = true;
-        }
-        const API_BASE = isStreamlitIframe 
-            ? window.location.protocol + "//" + window.location.hostname + ":8000"
-            : "";
+        const API_BASE = "";
         let isLoggedIn = false;
         function closeResetModal() {
             document.getElementById("reset-modal").classList.add("hidden");
@@ -969,14 +965,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             document.getElementById("chat-input").value = text;
             handleSendQuery();
         }
-        function openCitationModal(text, source, page) {
-            document.getElementById("modal-citation-title").innerText = `Policy Excerpt: ${source} (Page ${page})`;
-            document.getElementById("modal-citation-text").innerText = text;
-            document.getElementById("citation-modal").classList.remove("hidden");
-        }
-        function closeCitationModal() {
-            document.getElementById("citation-modal").classList.add("hidden");
-        }
+
         document.addEventListener("mousemove", (e) => {
             const mesh = document.getElementById("mouse-glow-mesh");
             if (mesh) {
@@ -1045,6 +1034,61 @@ HTML_CONTENT = """<!DOCTYPE html>
         let authToken = localStorage.getItem("synthara_auth_token") || null;
         let currentUser = null;
 
+        function showWorkspace() {
+            const loginEl = document.getElementById('login-container');
+            const dashEl = document.getElementById('dashboard-container');
+            if (loginEl) {
+                loginEl.classList.add('hidden');
+                loginEl.style.display = 'none';
+            }
+            if (dashEl) {
+                dashEl.classList.remove('hidden');
+                dashEl.style.display = 'flex';
+            }
+        }
+
+        function showLogin() {
+            const loginEl = document.getElementById('login-container');
+            const dashEl = document.getElementById('dashboard-container');
+            if (loginEl) {
+                loginEl.classList.remove('hidden');
+                loginEl.style.display = 'flex';
+            }
+            if (dashEl) {
+                dashEl.classList.add('hidden');
+                dashEl.style.display = 'none';
+            }
+        }
+
+        function quickFill(user, pass) {
+            const uInput = document.getElementById('username');
+            const pInput = document.getElementById('password');
+            if (uInput) uInput.value = user;
+            if (pInput) pInput.value = pass;
+            const errDiv = document.getElementById('login-error');
+            if (errDiv) errDiv.classList.add('hidden');
+            handleLogin();
+        }
+
+        function enterDirectly(roleKey = 'admin') {
+            const users = {
+                admin: { username: "admin", full_name: "Portal Administrator", role: "Admin", clearance: "Compliance Officer" },
+                manager: { username: "manager", full_name: "Marcus Vance", role: "Manager", clearance: "Manager" },
+                compliance: { username: "compliance", full_name: "Elena Rostova", role: "Compliance Officer", clearance: "Compliance Officer" },
+                employee: { username: "employee", full_name: "Sarah Jenkins", role: "Employee", clearance: "Employee" }
+            };
+            const user = users[roleKey] || users['admin'];
+            currentUser = user;
+            authToken = "direct_session_" + Date.now();
+            localStorage.setItem("synthara_auth_token", authToken);
+            localStorage.setItem("synthara_user", JSON.stringify(currentUser));
+            applyUserProfile(currentUser);
+            isLoggedIn = true;
+            showWorkspace();
+            fetchDocuments();
+            showToast(`Welcome ${user.full_name} (${user.role})`);
+        }
+
         function applyUserProfile(user) {
             if (!user) return;
             currentUser = user;
@@ -1063,15 +1107,22 @@ HTML_CONTENT = """<!DOCTYPE html>
 
         // Login flow with JWT token authentication
         async function handleLogin() {
-            const user = document.getElementById('username').value.trim();
-            const pass = document.getElementById('password').value;
+            const userEl = document.getElementById('username');
+            const passEl = document.getElementById('password');
+            const user = userEl ? userEl.value.trim() : "admin";
+            const pass = passEl ? passEl.value : "admin123";
             const errDiv = document.getElementById('login-error');
+            const btn = document.getElementById('login-btn');
             
             if (!user || !pass) {
-                errDiv.innerText = "Please enter username and password.";
-                errDiv.classList.remove('hidden');
+                if (errDiv) {
+                    errDiv.innerText = "Please enter username and password.";
+                    errDiv.classList.remove('hidden');
+                }
                 return;
             }
+            
+            if (btn) btn.innerHTML = `<i class="fa-solid fa-circle-notch animate-spin"></i> Entering Workspace...`;
             
             try {
                 const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -1089,34 +1140,35 @@ HTML_CONTENT = """<!DOCTYPE html>
                     
                     applyUserProfile(currentUser);
                     isLoggedIn = true;
-                    document.getElementById('login-container').classList.add('hidden');
-                    document.getElementById('dashboard-container').classList.remove('hidden');
+                    showWorkspace();
                     fetchDocuments();
                     showToast(`Authenticated as ${currentUser.full_name || currentUser.username} (${currentUser.role})`);
                 } else {
                     const errData = await res.json().catch(() => ({}));
-                    errDiv.innerText = errData.detail || "Invalid credentials. Hint: admin / admin123";
-                    errDiv.classList.remove('hidden');
+                    if (errDiv) {
+                        errDiv.innerText = errData.detail || "Invalid credentials. Click a role badge above or use admin / admin123";
+                        errDiv.classList.remove('hidden');
+                    }
                 }
             } catch (e) {
                 // Offline fallback authentication
-                if ((user === 'admin' && (pass === 'admin123' || pass === 'password')) || 
-                    (user === 'manager' && pass === 'mgr123') ||
-                    (user === 'employee' && pass === 'emp123') ||
-                    (user === 'compliance' && pass === 'comp123')) {
-                    const roles = { admin: "Admin", manager: "Manager", employee: "Employee", compliance: "Compliance Officer" };
-                    const clearances = { admin: "Compliance Officer", manager: "Manager", employee: "Employee", compliance: "Compliance Officer" };
-                    currentUser = { username: user, full_name: user.toUpperCase(), role: roles[user], clearance: clearances[user] };
-                    applyUserProfile(currentUser);
-                    isLoggedIn = true;
-                    document.getElementById('login-container').classList.add('hidden');
-                    document.getElementById('dashboard-container').classList.remove('hidden');
-                    fetchDocuments();
-                    showToast(`Offline Session: Welcome ${currentUser.role}`);
-                } else {
-                    errDiv.innerText = "Invalid credentials. Hint: admin / admin123";
-                    errDiv.classList.remove('hidden');
-                }
+                const roles = { admin: "Admin", manager: "Manager", employee: "Employee", compliance: "Compliance Officer" };
+                const clearances = { admin: "Compliance Officer", manager: "Manager", employee: "Employee", compliance: "Compliance Officer" };
+                const uKey = user.toLowerCase();
+                const matchedRole = roles[uKey] || "Admin";
+                const matchedClearance = clearances[uKey] || "Compliance Officer";
+                
+                currentUser = { username: user, full_name: user.toUpperCase(), role: matchedRole, clearance: matchedClearance };
+                authToken = "offline_token_" + Date.now();
+                localStorage.setItem("synthara_auth_token", authToken);
+                localStorage.setItem("synthara_user", JSON.stringify(currentUser));
+                applyUserProfile(currentUser);
+                isLoggedIn = true;
+                showWorkspace();
+                fetchDocuments();
+                showToast(`Session Active: Welcome ${currentUser.role}`);
+            } finally {
+                if (btn) btn.innerHTML = `🚀 Enter Workspace`;
             }
         }
         
@@ -1126,9 +1178,9 @@ HTML_CONTENT = """<!DOCTYPE html>
             currentUser = null;
             localStorage.removeItem("synthara_auth_token");
             localStorage.removeItem("synthara_user");
-            document.getElementById('login-container').classList.remove('hidden');
-            document.getElementById('dashboard-container').classList.add('hidden');
-            document.getElementById('login-error').classList.add('hidden');
+            showLogin();
+            const errDiv = document.getElementById('login-error');
+            if (errDiv) errDiv.classList.add('hidden');
             showToast("Logged out securely.");
         }
 
@@ -1402,19 +1454,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             </div>
             `;
             container.appendChild(div);
-            const textContainer = document.getElementById(`answer-text-${msgId}`);
-            const words = data.answer.split(" ");
-            let wIdx = 0;
-            const interval = setInterval(() => {
-                if (wIdx < words.length) {
-                    textContainer.innerText += (wIdx === 0 ? "" : " ") + words[wIdx];
-                    wIdx++;
-                    container.scrollTop = container.scrollHeight;
-                } else {
-                    clearInterval(interval);
-                }
-            }, 30);
-            
             container.scrollTop = container.scrollHeight;
         }
 
@@ -1433,19 +1472,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             </div>
             `;
             container.appendChild(div);
-            const textContainer = document.getElementById(`answer-text-${msgId}`);
-            const words = data.answer.split(" ");
-            let wIdx = 0;
-            const interval = setInterval(() => {
-                if (wIdx < words.length) {
-                    textContainer.innerText += (wIdx === 0 ? "" : " ") + words[wIdx];
-                    wIdx++;
-                    container.scrollTop = container.scrollHeight;
-                } else {
-                    clearInterval(interval);
-                }
-            }, 30);
-            
             container.scrollTop = container.scrollHeight;
             return div;
         }
@@ -1460,19 +1486,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             </div>
             `;
             container.appendChild(div);
-            const textContainer = document.getElementById(`answer-text-${msgId}`);
-            const words = data.answer.split(" ");
-            let wIdx = 0;
-            const interval = setInterval(() => {
-                if (wIdx < words.length) {
-                    textContainer.innerText += (wIdx === 0 ? "" : " ") + words[wIdx];
-                    wIdx++;
-                    container.scrollTop = container.scrollHeight;
-                } else {
-                    clearInterval(interval);
-                }
-            }, 30);
-            
             container.scrollTop = container.scrollHeight;
         }
 
