@@ -21,6 +21,8 @@ from utils.retriever import add_documents_to_db, query_db, reset_db, get_collect
 from utils.validator import validate_query, evaluate_faithfulness, evaluate_answer_relevancy
 from utils.auth import authenticate_user, create_jwt_token, verify_jwt_token, get_all_users, register_user
 from utils.memory import create_session, add_message, get_session_messages, list_sessions, delete_session, build_contextual_query
+from utils.analytics import record_query_telemetry, get_analytics_summary
+import time
 
 # Setup logging
 logger = logging.getLogger("app")
@@ -1041,6 +1043,19 @@ HTML_CONTENT = """<!DOCTYPE html>
                 analyticTab.classList.remove('hidden');
                 chatBtn.className = "text-sm font-semibold font-outfit text-slate-400 hover:text-white pb-1.5 transition";
                 analyticBtn.className = "text-sm font-semibold font-outfit text-white border-b-2 border-indigo-500 pb-1.5 transition";
+                loadAnalytics();
+            }
+        }
+
+        async function loadAnalytics() {
+            try {
+                const res = await fetch(API_BASE + '/api/analytics/summary');
+                if (res.ok) {
+                    const data = await res.json();
+                    console.log("Analytics summary loaded:", data);
+                }
+            } catch (e) {
+                console.warn("Analytics fetch fallback", e);
             }
         }
 
@@ -1609,6 +1624,7 @@ async def api_documents():
 
 @app.post("/api/query")
 async def api_query(payload: Dict[str, Any]):
+    start_time = time.time()
     query = payload.get("query", "")
     clearance = payload.get("clearance", "Employee")
     session_id = payload.get("session_id")
@@ -1627,10 +1643,14 @@ async def api_query(payload: Dict[str, Any]):
         
     res = run_pipeline(effective_query, clearance=clearance)
     
-    # Calculate token usage costs
+    # Calculate token usage costs & latency
+    latency_ms = (time.time() - start_time) * 1000.0
     prompt_len = len(effective_query) // 4
     comp_len = len(res["answer"]) // 4
     cost = (prompt_len * 0.15 / 1e6) + (comp_len * 0.60 / 1e6)
+    
+    faith_score = res["evaluation"]["faithfulness"].get("score", 1.0)
+    rel_score = res["evaluation"]["relevancy"].get("score", 1.0)
     
     if session_id:
         add_message(
@@ -1642,11 +1662,26 @@ async def api_query(payload: Dict[str, Any]):
             user_id=user_id
         )
     
+    # Record real-time telemetry
+    record_query_telemetry(
+        query=query,
+        answer=res["answer"],
+        latency_ms=latency_ms,
+        prompt_tokens=prompt_len,
+        completion_tokens=comp_len,
+        cost=cost,
+        faithfulness=faith_score,
+        relevancy=rel_score,
+        clearance=clearance,
+        user_id=user_id,
+        session_id=session_id
+    )
+    
     log_evaluation(
         query=query,
         answer=res["answer"],
-        faithfulness=res["evaluation"]["faithfulness"].get("score", 0.0),
-        relevancy=res["evaluation"]["relevancy"].get("score", 0.0)
+        faithfulness=faith_score,
+        relevancy=rel_score
     )
     
     return JSONResponse(content={
@@ -1654,8 +1689,13 @@ async def api_query(payload: Dict[str, Any]):
         "citations": res["citations"],
         "evaluation": res["evaluation"],
         "cost": cost,
+        "latency_ms": round(latency_ms, 2),
         "session_id": session_id
     })
+
+@app.get("/api/analytics/summary")
+async def api_analytics_summary():
+    return JSONResponse(content=get_analytics_summary())
 
 @app.get("/api/conversations")
 async def api_get_conversations(user_id: Optional[str] = None):
