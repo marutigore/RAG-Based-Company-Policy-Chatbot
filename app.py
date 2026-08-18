@@ -2317,11 +2317,8 @@ import sys
 is_streamlit_runner = False
 try:
     import streamlit as st
-    if hasattr(st, "runtime") and st.runtime.exists():
-        is_streamlit_runner = True
-    elif "streamlit.web.cli" in sys.modules or "streamlit.runtime" in sys.modules:
-        is_streamlit_runner = True
-    elif any("streamlit" in arg.lower() for arg in sys.argv):
+    from streamlit.runtime.scriptrunner import get_script_run_ctx
+    if get_script_run_ctx() is not None:
         is_streamlit_runner = True
 except Exception:
     is_streamlit_runner = False
