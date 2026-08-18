@@ -1,0 +1,38 @@
+{
+  "admin": {
+    "username": "admin",
+    "full_name": "Portal Administrator",
+    "password_hash": "synthara_admin_salt:96e41ee7a079a0f3fddfa068043074b91a54cb037876d9914f0ad8e4208d627a",
+    "role": "Admin",
+    "clearance": "Compliance Officer",
+    "department": "Executive Security",
+    "created_at": "2026-08-17T09:52:29.464274"
+  },
+  "compliance": {
+    "username": "compliance",
+    "full_name": "Elena Rostova",
+    "password_hash": "synthara_comp_salt:2a4dacf13f6ce9406e19aa65f9f1fa498bc3e947736db4e30659029aa1ae511a",
+    "role": "Compliance Officer",
+    "clearance": "Compliance Officer",
+    "department": "Legal & Audit",
+    "created_at": "2026-08-17T09:52:29.524066"
+  },
+  "manager": {
+    "username": "manager",
+    "full_name": "Marcus Vance",
+    "password_hash": "synthara_mgr_salt:a45239b40ba8f7da67bb339f537503af306cf4b6b971a680247d92a3697e99f1",
+    "role": "Manager",
+    "clearance": "Manager",
+    "department": "Engineering Ops",
+    "created_at": "2026-08-17T09:52:29.594299"
+  },
+  "employee": {
+    "username": "employee",
+    "full_name": "Sarah Jenkins",
+    "password_hash": "synthara_emp_salt:b8568bc4971d69105c659598cd130efbef8c295ba4cbf6665638026fdcecd2a7",
+    "role": "Employee",
+    "clearance": "Employee",
+    "department": "Product Design",
+    "created_at": "2026-08-17T09:52:29.654307"
+  }
+}

@@ -18,6 +18,8 @@ chroma_db/
 temp_uploads/
 tmp/
 temp/
+uploaded_policies/*.csv
+*.csv
 
 # OS-specific files
 Thumbs.db

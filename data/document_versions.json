@@ -1,0 +1,67 @@
+{
+  "policy.txt": [
+    {
+      "filename": "policy.txt",
+      "version": "v1.0",
+      "hash": "60329bc85480d3c6a566d6101ce5f9fbee836b89e1952cf16326fb392cb59c55",
+      "chunks_count": 4,
+      "pages_count": 1,
+      "uploader": "admin",
+      "notes": "Policy revision ingested on 2026-08-17",
+      "timestamp": "2026-08-17T10:00:19.833486",
+      "is_active": true
+    }
+  ],
+  "EDA-Report.pdf": [
+    {
+      "filename": "EDA-Report.pdf",
+      "version": "v1.0",
+      "hash": "8f7bac7332b3845c1ed25b8bfb204800436966f0e35e24a0f9b8a02433fb464b",
+      "chunks_count": 0,
+      "pages_count": 0,
+      "uploader": "admin",
+      "notes": "Policy revision ingested on 2026-08-17",
+      "timestamp": "2026-08-17T10:14:32.405658",
+      "is_active": true
+    }
+  ],
+  "Resume_template.pdf": [
+    {
+      "filename": "Resume_template.pdf",
+      "version": "v1.0",
+      "hash": "9bc950db440eb3e16bb6c948f1a357e1fa15d176c6c4d0fe180329f31942e5ed",
+      "chunks_count": 1,
+      "pages_count": 1,
+      "uploader": "admin",
+      "notes": "Policy revision ingested on 2026-08-17",
+      "timestamp": "2026-08-17T10:14:33.058245",
+      "is_active": true
+    }
+  ],
+  "sample_policy.txt": [
+    {
+      "filename": "sample_policy.txt",
+      "version": "v1.0",
+      "hash": "23d740321e17f675859554201840d7b6dc3f0a80422f56d715f6f810e20ea4d2",
+      "chunks_count": 1,
+      "pages_count": 1,
+      "uploader": "admin",
+      "notes": "Policy revision ingested on 2026-08-17",
+      "timestamp": "2026-08-17T11:59:34.218405",
+      "is_active": true
+    }
+  ],
+  "enterprise_security_policy.txt": [
+    {
+      "filename": "enterprise_security_policy.txt",
+      "version": "v1.0",
+      "hash": "0316967b0b6f36e93bb57e372601df7fbeb5e2bc082ed4e463e6a4c594b1a707",
+      "chunks_count": 1,
+      "pages_count": 1,
+      "uploader": "admin",
+      "notes": "Policy revision ingested on 2026-08-18",
+      "timestamp": "2026-08-18T16:40:12.111128",
+      "is_active": true
+    }
+  ]
+}

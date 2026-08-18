@@ -1,0 +1,340 @@
+[
+  {
+    "id": "a7d0c341",
+    "timestamp": "2026-08-17T10:11:30.037469",
+    "event_type": "TEST_EVENT",
+    "user_id": "admin",
+    "clearance": "Admin",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "test": true
+    },
+    "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "entry_hash": "902f32ac18805299b61a13e615ecd124fbadb261c236ffa88e81d400d83b4962"
+  },
+  {
+    "id": "8a4ef12f",
+    "timestamp": "2026-08-17T10:14:32.409158",
+    "event_type": "DOCUMENT_AUTO_SYNCED",
+    "user_id": "sync_daemon",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "filename": "EDA-Report.pdf",
+      "chunks": 0,
+      "version": "v1.0"
+    },
+    "previous_hash": "902f32ac18805299b61a13e615ecd124fbadb261c236ffa88e81d400d83b4962",
+    "entry_hash": "aecdcd051167c8a5f52a289744b6d1dfa2e236148d1096d3cfc86a32ebe0e424"
+  },
+  {
+    "id": "0a9d0c93",
+    "timestamp": "2026-08-17T10:27:22.941639",
+    "event_type": "AUTH_LOGIN",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "role": "Admin",
+      "department": "Executive Security"
+    },
+    "previous_hash": "aecdcd051167c8a5f52a289744b6d1dfa2e236148d1096d3cfc86a32ebe0e424",
+    "entry_hash": "286f3c8b755fff69b2280311bcbf08f5134ab8bab7be5153797e29d7e3870b64"
+  },
+  {
+    "id": "8fa8c796",
+    "timestamp": "2026-08-17T10:29:28.931824",
+    "event_type": "AUTH_LOGIN",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "role": "Admin",
+      "department": "Executive Security"
+    },
+    "previous_hash": "286f3c8b755fff69b2280311bcbf08f5134ab8bab7be5153797e29d7e3870b64",
+    "entry_hash": "1141fcb0f3bd6162ed68a258042d58fa0de2f465b5d9fe3305d0e53557717d2d"
+  },
+  {
+    "id": "97baedd7",
+    "timestamp": "2026-08-17T10:36:17.747006",
+    "event_type": "AUTH_LOGIN",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "role": "Admin",
+      "department": "Executive Security"
+    },
+    "previous_hash": "1141fcb0f3bd6162ed68a258042d58fa0de2f465b5d9fe3305d0e53557717d2d",
+    "entry_hash": "f9ae1069a405edfb8163a3f182030195b58c31badb6789aa6b62c105a168f879"
+  },
+  {
+    "id": "593ae635",
+    "timestamp": "2026-08-17T10:38:57.374723",
+    "event_type": "AUTH_LOGIN",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "role": "Admin",
+      "department": "Executive Security"
+    },
+    "previous_hash": "f9ae1069a405edfb8163a3f182030195b58c31badb6789aa6b62c105a168f879",
+    "entry_hash": "236c877f575ecd3983788200a0d32f36a3765b022284ee4085224c80c35d3c35"
+  },
+  {
+    "id": "f8edb5ce",
+    "timestamp": "2026-08-17T12:02:55.012066",
+    "event_type": "DOCUMENT_INGESTED",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "filename": "sample_policy.txt",
+      "chunks": 1,
+      "pages": 1,
+      "version": "v1.0"
+    },
+    "previous_hash": "236c877f575ecd3983788200a0d32f36a3765b022284ee4085224c80c35d3c35",
+    "entry_hash": "fde7717799caeb0a4e52ccea13445516715ab4559667efb90ce65b7a0b849c0e"
+  },
+  {
+    "id": "cbd7d0fd",
+    "timestamp": "2026-08-17T12:08:54.523908",
+    "event_type": "QUERY_EXECUTED",
+    "user_id": "anonymous",
+    "clearance": "Employee",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "query": "How many paid annual leave days do employees get?",
+      "category": null,
+      "faithfulness": 0.0,
+      "relevancy": 0.0,
+      "cost": 2.16e-05,
+      "prompt_variant": "A"
+    },
+    "previous_hash": "fde7717799caeb0a4e52ccea13445516715ab4559667efb90ce65b7a0b849c0e",
+    "entry_hash": "e0e9285d47c11a0e1deff38c2dcf508a67090d65b33da5c7adac002a0bc1d58e"
+  },
+  {
+    "id": "fe13e061",
+    "timestamp": "2026-08-18T16:40:31.457067",
+    "event_type": "DOCUMENT_INGESTED",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "filename": "enterprise_security_policy.txt",
+      "chunks": 1,
+      "pages": 1,
+      "version": "v1.0"
+    },
+    "previous_hash": "e0e9285d47c11a0e1deff38c2dcf508a67090d65b33da5c7adac002a0bc1d58e",
+    "entry_hash": "f8c674c08edda7ddd7bd917cff40eb54b17c45c025ffa8f537e0b31dcf5616df"
+  },
+  {
+    "id": "b9b70897",
+    "timestamp": "2026-08-18T16:41:28.427198",
+    "event_type": "DOCUMENT_INGESTED",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "filename": "enterprise_security_policy.txt",
+      "chunks": 1,
+      "pages": 1,
+      "version": "v1.0"
+    },
+    "previous_hash": "f8c674c08edda7ddd7bd917cff40eb54b17c45c025ffa8f537e0b31dcf5616df",
+    "entry_hash": "def459027da298b1ffdd8ddcbd20cd1da6381bc0c4647f5ba97e79faeecabc4d"
+  },
+  {
+    "id": "bd99cfb9",
+    "timestamp": "2026-08-18T16:42:01.225744",
+    "event_type": "QUERY_EXECUTED",
+    "user_id": "anonymous",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "query": "What are the password security and MFA requirements?",
+      "category": null,
+      "faithfulness": 0.947,
+      "relevancy": 0.875,
+      "cost": 5.4749999999999996e-05,
+      "prompt_variant": "A"
+    },
+    "previous_hash": "def459027da298b1ffdd8ddcbd20cd1da6381bc0c4647f5ba97e79faeecabc4d",
+    "entry_hash": "8f29374d79ec47870d95a010760041469d58284a6eadf956d7436ba1484efb81"
+  },
+  {
+    "id": "58f4b3b0",
+    "timestamp": "2026-08-18T16:42:01.283355",
+    "event_type": "FEEDBACK_SUBMITTED",
+    "user_id": "anonymous",
+    "clearance": "Employee",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "rating": 1,
+      "issue_type": null
+    },
+    "previous_hash": "8f29374d79ec47870d95a010760041469d58284a6eadf956d7436ba1484efb81",
+    "entry_hash": "6733119c0406c1d6c335564423b2816236fb44c31d880e9351d64f0b31e150ac"
+  },
+  {
+    "id": "a7153daf",
+    "timestamp": "2026-08-18T16:42:01.452130",
+    "event_type": "AUTH_LOGIN",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "role": "Admin",
+      "department": "Executive Security"
+    },
+    "previous_hash": "6733119c0406c1d6c335564423b2816236fb44c31d880e9351d64f0b31e150ac",
+    "entry_hash": "21bdca990eae98cdb4c13e56a5c9bb65497306bc35c2b238ec3aac69384bccc1"
+  },
+  {
+    "id": "2efb3d4f",
+    "timestamp": "2026-08-18T16:45:34.032647",
+    "event_type": "DOCUMENT_INGESTED",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "filename": "enterprise_security_policy.txt",
+      "chunks": 1,
+      "pages": 1,
+      "version": "v1.0"
+    },
+    "previous_hash": "21bdca990eae98cdb4c13e56a5c9bb65497306bc35c2b238ec3aac69384bccc1",
+    "entry_hash": "222ed01bec6702e6c75581d6e9742fbd4010d2b77f7e24fa39d3f4802f7cf8a7"
+  },
+  {
+    "id": "9cbae4a7",
+    "timestamp": "2026-08-18T16:45:40.360861",
+    "event_type": "QUERY_EXECUTED",
+    "user_id": "anonymous",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "query": "What are the password security and MFA requirements?",
+      "category": null,
+      "faithfulness": 0.947,
+      "relevancy": 0.875,
+      "cost": 5.4749999999999996e-05,
+      "prompt_variant": "A"
+    },
+    "previous_hash": "222ed01bec6702e6c75581d6e9742fbd4010d2b77f7e24fa39d3f4802f7cf8a7",
+    "entry_hash": "d8d2ee06c8dc923fb00675376d14c85cdf71bdfbaf3eb2ad1a243698bd83c29a"
+  },
+  {
+    "id": "a28299e8",
+    "timestamp": "2026-08-18T16:45:40.435098",
+    "event_type": "FEEDBACK_SUBMITTED",
+    "user_id": "anonymous",
+    "clearance": "Employee",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "rating": 1,
+      "issue_type": null
+    },
+    "previous_hash": "d8d2ee06c8dc923fb00675376d14c85cdf71bdfbaf3eb2ad1a243698bd83c29a",
+    "entry_hash": "54990cdd20a2da16a93d9bac92197f8d082c4e38d7633bc1e54d1e20eaaac64b"
+  },
+  {
+    "id": "5bcc8f72",
+    "timestamp": "2026-08-18T16:45:40.686188",
+    "event_type": "AUTH_LOGIN",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "role": "Admin",
+      "department": "Executive Security"
+    },
+    "previous_hash": "54990cdd20a2da16a93d9bac92197f8d082c4e38d7633bc1e54d1e20eaaac64b",
+    "entry_hash": "e9ae3bee496af6de3486da285ca627a1bb76dc9837fbabd38f9a2f293f7db789"
+  },
+  {
+    "id": "13323e06",
+    "timestamp": "2026-08-18T16:59:01.286153",
+    "event_type": "DOCUMENT_INGESTED",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "filename": "enterprise_security_policy.txt",
+      "chunks": 1,
+      "pages": 1,
+      "version": "v1.0"
+    },
+    "previous_hash": "e9ae3bee496af6de3486da285ca627a1bb76dc9837fbabd38f9a2f293f7db789",
+    "entry_hash": "63fbe2338a6e7b7fafdb5859313ad1a855bc462842edd6a0c03a0682d1137c3c"
+  },
+  {
+    "id": "78926b85",
+    "timestamp": "2026-08-18T16:59:06.088451",
+    "event_type": "QUERY_EXECUTED",
+    "user_id": "anonymous",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "query": "What are the password security and MFA requirements?",
+      "category": null,
+      "faithfulness": 0.947,
+      "relevancy": 0.875,
+      "cost": 5.4749999999999996e-05,
+      "prompt_variant": "A"
+    },
+    "previous_hash": "63fbe2338a6e7b7fafdb5859313ad1a855bc462842edd6a0c03a0682d1137c3c",
+    "entry_hash": "e9ffc8d76ef910e1393d65bcf47e7edc678fb64a38f0b5af644ea36c50c4025b"
+  },
+  {
+    "id": "4205fc22",
+    "timestamp": "2026-08-18T16:59:06.138088",
+    "event_type": "FEEDBACK_SUBMITTED",
+    "user_id": "anonymous",
+    "clearance": "Employee",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "rating": 1,
+      "issue_type": null
+    },
+    "previous_hash": "e9ffc8d76ef910e1393d65bcf47e7edc678fb64a38f0b5af644ea36c50c4025b",
+    "entry_hash": "e9640b4e67ccc88acc03dfe0b53757c6c59f466e059bb47e4ed7928f3448859d"
+  },
+  {
+    "id": "d1063e22",
+    "timestamp": "2026-08-18T16:59:06.286292",
+    "event_type": "AUTH_LOGIN",
+    "user_id": "admin",
+    "clearance": "Compliance Officer",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "role": "Admin",
+      "department": "Executive Security"
+    },
+    "previous_hash": "e9640b4e67ccc88acc03dfe0b53757c6c59f466e059bb47e4ed7928f3448859d",
+    "entry_hash": "25b45cde5315290a3f95fedb3883df8861b47328ac85263244dbf464c1d07a11"
+  },
+  {
+    "id": "f70efe30",
+    "timestamp": "2026-08-18T17:03:17.898742",
+    "event_type": "QUERY_EXECUTED",
+    "user_id": "anonymous",
+    "clearance": "Employee",
+    "ip_address": "127.0.0.1",
+    "details": {
+      "query": "What is the vacation policy?",
+      "category": "All",
+      "faithfulness": 0.947,
+      "relevancy": 0.875,
+      "cost": 5.205e-05,
+      "prompt_variant": "A"
+    },
+    "previous_hash": "25b45cde5315290a3f95fedb3883df8861b47328ac85263244dbf464c1d07a11",
+    "entry_hash": "7c12c8969d89beb9ba625cebc4709487cba446b229b15379f77131cccf2d52d3"
+  }
+]

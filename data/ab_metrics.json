@@ -1,0 +1,18 @@
+{
+  "A": {
+    "queries": 5,
+    "total_latency_ms": 100047.55473136902,
+    "total_faithfulness": 3.788,
+    "total_relevancy": 3.5,
+    "positive_ratings": 0,
+    "negative_ratings": 0
+  },
+  "B": {
+    "queries": 0,
+    "total_latency_ms": 0.0,
+    "total_faithfulness": 0.0,
+    "total_relevancy": 0.0,
+    "positive_ratings": 0,
+    "negative_ratings": 0
+  }
+}

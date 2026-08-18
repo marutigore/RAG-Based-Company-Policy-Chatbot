@@ -1,0 +1,3 @@
+Synthara IT Security Policy 2026.
+All employee passwords must be at least 14 characters with MFA mandatory.
+VPN is required for remote network access.

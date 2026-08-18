@@ -1,0 +1,46 @@
+[
+  {
+    "id": "887bc044",
+    "timestamp": "2026-08-17T09:59:10.064763",
+    "query": "Test query",
+    "answer": "Test answer",
+    "rating": 1,
+    "comments": "Great accuracy",
+    "issue_type": "helpful",
+    "user_id": "anonymous",
+    "session_id": null
+  },
+  {
+    "id": "ff6f3fa5",
+    "timestamp": "2026-08-18T16:42:01.269411",
+    "query": "Password requirements test",
+    "answer": "Passwords must be 14 chars",
+    "rating": 1,
+    "comments": "Accurate response",
+    "issue_type": "helpful",
+    "user_id": "anonymous",
+    "session_id": null
+  },
+  {
+    "id": "ec8eeeca",
+    "timestamp": "2026-08-18T16:45:40.409194",
+    "query": "Password requirements test",
+    "answer": "Passwords must be 14 chars",
+    "rating": 1,
+    "comments": "Accurate response",
+    "issue_type": "helpful",
+    "user_id": "anonymous",
+    "session_id": null
+  },
+  {
+    "id": "80dea168",
+    "timestamp": "2026-08-18T16:59:06.122110",
+    "query": "Password requirements test",
+    "answer": "Passwords must be 14 chars",
+    "rating": 1,
+    "comments": "Accurate response",
+    "issue_type": "helpful",
+    "user_id": "anonymous",
+    "session_id": null
+  }
+]

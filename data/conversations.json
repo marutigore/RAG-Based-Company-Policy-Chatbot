@@ -1,0 +1,19 @@
+{
+  "31cf6789": {
+    "id": "31cf6789",
+    "user_id": "admin",
+    "title": "Test Session",
+    "created_at": "2026-08-17T09:54:20.155374",
+    "updated_at": "2026-08-17T09:54:20.176615",
+    "messages": [
+      {
+        "id": "8050e402",
+        "role": "user",
+        "content": "What is the leave policy?",
+        "citations": [],
+        "evaluation": {},
+        "timestamp": "2026-08-17T09:54:20.176615"
+      }
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "timestamp": "2026-08-13T12:36:02.822303",
+    "query": "What is the vacation leave policy?",
+    "answer": "An error occurred: 'ascii' codec can't encode character '\\u2011' in position 12: ordinal not in range(128)",
+    "faithfulness": 0.0,
+    "relevancy": 0.0
+  },
+  {
+    "timestamp": "2026-08-17T17:38:54.529043",
+    "query": "How many paid annual leave days do employees get?",
+    "answer": "An error occurred: Error code: 400 - [{'error': {'code': 400, 'message': 'Please pass a valid API key', 'status': 'INVALID_ARGUMENT'}}]",
+    "faithfulness": 0.0,
+    "relevancy": 0.0
+  },
+  {
+    "timestamp": "2026-08-18T22:12:01.225744",
+    "query": "What are the password security and MFA requirements?",
+    "answer": "**Policy Guidance Summary** (Source: `enterprise_security_policy.txt`, Page 1):\n\n\u2022 Synthara IT Security Policy 2026. [1]\n\u2022 All employee passwords must be at least 14 characters with MFA mandatory. [1]\n\u2022 Synthara Enterprise Vacation and Leave Policy Document. [2]\n\u2022 Employees are granted 20 paid annual leave days and 10 health days per calendar year. [2]",
+    "faithfulness": 0.947,
+    "relevancy": 0.875
+  },
+  {
+    "timestamp": "2026-08-18T22:15:40.369095",
+    "query": "What are the password security and MFA requirements?",
+    "answer": "**Policy Guidance Summary** (Source: `enterprise_security_policy.txt`, Page 1):\n\n\u2022 Synthara IT Security Policy 2026. [1]\n\u2022 All employee passwords must be at least 14 characters with MFA mandatory. [1]\n\u2022 Synthara Enterprise Vacation and Leave Policy Document. [2]\n\u2022 Employees are granted 20 paid annual leave days and 10 health days per calendar year. [2]",
+    "faithfulness": 0.947,
+    "relevancy": 0.875
+  },
+  {
+    "timestamp": "2026-08-18T22:29:06.096323",
+    "query": "What are the password security and MFA requirements?",
+    "answer": "**Policy Guidance Summary** (Source: `enterprise_security_policy.txt`, Page 1):\n\n\u2022 Synthara IT Security Policy 2026. [1]\n\u2022 All employee passwords must be at least 14 characters with MFA mandatory. [1]\n\u2022 Synthara Enterprise Vacation and Leave Policy Document. [2]\n\u2022 Employees are granted 20 paid annual leave days and 10 health days per calendar year. [2]",
+    "faithfulness": 0.947,
+    "relevancy": 0.875
+  },
+  {
+    "timestamp": "2026-08-18T22:33:17.902387",
+    "query": "What is the vacation policy?",
+    "answer": "**Policy Guidance Summary** (Source: `sample_policy.txt`, Page 1):\n\n\u2022 Synthara Enterprise Vacation and Leave Policy Document. [1]\n\u2022 Employees are granted 20 paid annual leave days and 10 health days per calendar year. [1]\n\u2022 Synthara IT Security Policy 2026. [2]\n\u2022 All employee passwords must be at least 14 characters with MFA mandatory. [2]",
+    "faithfulness": 0.947,
+    "relevancy": 0.875
+  }
+]
