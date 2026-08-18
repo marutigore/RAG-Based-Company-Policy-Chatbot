@@ -45,10 +45,39 @@ app = FastAPI(title="Synthara RAG Portal")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def startup_event():
+    try:
+        docs = get_indexed_documents()
+        if not docs:
+            storage_dir = "uploaded_policies"
+            if os.path.exists(storage_dir):
+                for fname in os.listdir(storage_dir):
+                    fpath = os.path.join(storage_dir, fname)
+                    if os.path.isfile(fpath) and fname.lower().endswith(('.txt', '.pdf', '.docx', '.md', '.csv')):
+                        try:
+                            pages = load_document(fpath)
+                            chunks = split_documents(pages, chunk_size=512, chunk_overlap=64)
+                            ver_info = register_document_version(
+                                filename=fname,
+                                file_path=fpath,
+                                chunks_count=len(chunks),
+                                pages_count=len(pages)
+                            )
+                            for c in chunks:
+                                c["metadata"]["version"] = ver_info.get("version", "v1.0")
+                                c["metadata"]["hash"] = ver_info.get("hash", "")
+                            add_documents_to_db(chunks)
+                            logger.info(f"Auto-indexed startup document: {fname} ({len(chunks)} chunks)")
+                        except Exception as de:
+                            logger.warning(f"Could not auto-index {fname}: {de}")
+    except Exception as e:
+        logger.error(f"Startup initialization error: {e}")
 
 # Core RAG functions matching test_validation.py expectations
 def init_session_state() -> None:
@@ -739,13 +768,17 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <!-- UI Logics & API bindings JS -->
     <script>
-        let API_BASE = "";
+        let API_BASE = "http://127.0.0.1:8000";
         try {
-            if (window.location.port && window.location.port !== "8000") {
-                API_BASE = window.location.protocol + "//" + window.location.hostname + ":8000";
+            const h = window.location.hostname || "127.0.0.1";
+            const p = (window.location.protocol && window.location.protocol.startsWith("http")) ? window.location.protocol : "http:";
+            if (window.location.port === "8000") {
+                API_BASE = "";
+            } else {
+                API_BASE = p + "//" + h + ":8000";
             }
         } catch (e) {
-            API_BASE = "http://localhost:8000";
+            API_BASE = "http://127.0.0.1:8000";
         }
         let isLoggedIn = true;
         function closeResetModal() {
@@ -1331,8 +1364,10 @@ HTML_CONTENT = """<!DOCTYPE html>
             
             const formData = new FormData();
             formData.append("file", file);
-            formData.append("chunk_size", document.getElementById('chunk-size-slider').value);
-            formData.append("chunk_overlap", document.getElementById('chunk-overlap-slider').value);
+            const csEl = document.getElementById('chunk-size-slider');
+            const coEl = document.getElementById('chunk-overlap-slider');
+            formData.append("chunk_size", csEl ? csEl.value : "512");
+            formData.append("chunk_overlap", coEl ? coEl.value : "64");
             
             // Simulation progress animation
             let currentPct = 10;
@@ -1340,11 +1375,24 @@ HTML_CONTENT = """<!DOCTYPE html>
                 currentPct = Math.min(85, currentPct + 15);
                 pctSpan.innerText = `${currentPct}%`;
                 progress.style.width = `${currentPct}%`;
-                if (currentPct === 40) { logSpan.innerText = "Extracting text nodes..."; document.getElementById("step-loader-1").className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; }
-                if (currentPct === 55) { document.getElementById("step-loader-2").className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; }
-                if (currentPct === 70) { logSpan.innerText = "Generating SentenceTransformer embeddings..."; document.getElementById("step-loader-3").className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; }
-                if (currentPct === 85) { document.getElementById("step-loader-4").className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; }
-                if (currentPct === 70) logSpan.innerText = "Generating SentenceTransformer embeddings...";
+                if (currentPct === 40) { 
+                    logSpan.innerText = "Extracting text nodes..."; 
+                    const s1 = document.getElementById("step-loader-1");
+                    if (s1) s1.className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; 
+                }
+                if (currentPct === 55) { 
+                    const s2 = document.getElementById("step-loader-2");
+                    if (s2) s2.className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; 
+                }
+                if (currentPct === 70) { 
+                    logSpan.innerText = "Generating SentenceTransformer embeddings..."; 
+                    const s3 = document.getElementById("step-loader-3");
+                    if (s3) s3.className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; 
+                }
+                if (currentPct === 85) { 
+                    const s4 = document.getElementById("step-loader-4");
+                    if (s4) s4.className = "text-[8px] py-1 bg-indigo-500/10 border-indigo-500/30 text-indigo-400 rounded font-semibold"; 
+                }
             }, 300);
             
             try {
@@ -1355,22 +1403,28 @@ HTML_CONTENT = """<!DOCTYPE html>
                 clearInterval(timer);
                 
                 if (res.ok) {
-                    pctSpan.innerText = "100%"; document.getElementById("step-loader-5").className = "text-[8px] py-1 bg-emerald-500/10 border-emerald-500/30 text-emerald-400 rounded font-semibold";
+                    const data = await res.json();
+                    pctSpan.innerText = "100%"; 
+                    const s5 = document.getElementById("step-loader-5");
+                    if (s5) s5.className = "text-[8px] py-1 bg-emerald-500/10 border-emerald-500/30 text-emerald-400 rounded font-semibold";
                     progress.style.width = "100%";
                     logSpan.innerText = "Database index completed successfully!";
+                    showToast(`Successfully indexed ${file.name} (${data.chunks_count || 1} chunks)`);
                     setTimeout(() => {
                         statusDiv.classList.add("hidden");
-                        document.getElementById("upload-queue-card").classList.add("hidden");
+                        const qCard = document.getElementById("upload-queue-card");
+                        if (qCard) qCard.classList.add("hidden");
                     }, 2000);
                     fetchDocuments();
                 } else {
-                    const data = await res.json();
-                    showToast(data.detail, true);
+                    const data = await res.json().catch(() => ({ detail: "Upload failed" }));
+                    showToast(data.detail || "Upload failed", true);
                     statusDiv.classList.add('hidden');
                 }
             } catch (err) {
                 clearInterval(timer);
-                showToast("Upload failed", true);
+                console.error("Upload error:", err);
+                showToast("Upload network error: " + err.message, true);
                 statusDiv.classList.add('hidden');
             }
         }
@@ -1383,10 +1437,11 @@ HTML_CONTENT = """<!DOCTYPE html>
                     method: 'DELETE'
                 });
                 if (res.ok) {
+                    showToast(`Deleted ${sourceName}`);
                     fetchDocuments();
                 } else {
-                    const data = await res.json();
-                    showToast("Delete failed", true);
+                    const data = await res.json().catch(() => ({ detail: "Delete failed" }));
+                    showToast(data.detail || "Delete failed", true);
                 }
             } catch (err) {
                 showToast("Error deleting document", true);
@@ -1419,6 +1474,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         // Send query RAG
         async function handleSendQuery() {
             const input = document.getElementById('chat-input');
+            if (!input) return;
             const query = input.value.trim();
             if (!query) return;
             
@@ -1427,6 +1483,13 @@ HTML_CONTENT = """<!DOCTYPE html>
             
             const typingDiv = appendTypingIndicator();
             
+            const clrEl = document.getElementById('clearance-select');
+            const csEl = document.getElementById('chunk-size-slider');
+            const coEl = document.getElementById('chunk-overlap-slider');
+            const clearanceVal = clrEl ? clrEl.value : "Employee";
+            const chunkSizeVal = csEl ? parseInt(csEl.value) : 512;
+            const chunkOverlapVal = coEl ? parseInt(coEl.value) : 64;
+
             try {
                 const res = await fetch(API_BASE + '/api/query', {
                     method: 'POST',
@@ -1438,10 +1501,10 @@ HTML_CONTENT = """<!DOCTYPE html>
                         query: query,
                         session_id: currentSessionId,
                         user_id: currentUser ? currentUser.username : "anonymous",
-                        clearance: document.getElementById('clearance-select').value,
+                        clearance: clearanceVal,
                         category: activeCategoryFilter,
-                        chunk_size: parseInt(document.getElementById('chunk-size-slider').value),
-                        chunk_overlap: parseInt(document.getElementById('chunk-overlap-slider').value)
+                        chunk_size: chunkSizeVal,
+                        chunk_overlap: chunkOverlapVal
                     })
                 });
                 
@@ -1454,20 +1517,26 @@ HTML_CONTENT = """<!DOCTYPE html>
                     // Increment total cost metric
                     if (data.cost) {
                         totalCost += data.cost;
-                        document.getElementById("metric-cost").innerText = `$${totalCost.toFixed(5)}`;
+                        const costEl = document.getElementById("metric-cost");
+                        if (costEl) costEl.innerText = `$${totalCost.toFixed(5)}`;
                         const costPct = Math.min(100, (totalCost / 0.10) * 100);
-                        document.getElementById("cost-progress-bar").style.width = `${costPct}%`;
+                        const pBar = document.getElementById("cost-progress-bar");
+                        if (pBar) pBar.style.width = `${costPct}%`;
                     }
                 } else {
-                    const data = await res.json();
+                    const data = await res.json().catch(() => ({ detail: "Retrieval execution aborted." }));
                     appendSystemErrorMessage(data.detail || "Retrieval execution aborted.");
-                    const chatCard = document.getElementById("chat-input").parentElement;
-                    chatCard.classList.add("shake-element");
-                    setTimeout(() => { chatCard.classList.remove("shake-element"); }, 500);
+                    const chatInputEl = document.getElementById("chat-input");
+                    const chatCard = chatInputEl ? chatInputEl.parentElement : null;
+                    if (chatCard) {
+                        chatCard.classList.add("shake-element");
+                        setTimeout(() => { chatCard.classList.remove("shake-element"); }, 500);
+                    }
                 }
             } catch (err) {
                 typingDiv.remove();
-                appendSystemErrorMessage("Network error connecting to RAG worker.");
+                console.error("Query error:", err);
+                appendSystemErrorMessage("Network error connecting to RAG worker: " + err.message);
             }
         }
 
