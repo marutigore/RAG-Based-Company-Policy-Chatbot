@@ -5,6 +5,7 @@ Loads settings from environment variables and validates API keys.
 
 import os
 import logging
+from typing import Optional
 from dotenv import load_dotenv
 
 # Setup basic logging to console
@@ -21,21 +22,39 @@ try:
 except Exception as e:
     logger.warning(f"Error loading .env file (using system environment): {e}")
 
-# Check for Gemini key first (very generous free tier, no billing required)
-GEMINI_KEY = os.getenv("GEMINI_API_KEY", "").replace('\u2011', '-').replace('\u2013', '-').replace('\u2014', '-').strip()
-raw_openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+# Sanitize key strings helper
+def _clean_key(key_str: Optional[str]) -> str:
+    if not key_str:
+        return ""
+    k = key_str.replace('\u2011', '-').replace('\u2010', '-').replace('\u2013', '-').replace('\u2014', '-').strip()
+    return k
 
-# If Gemini Key is present and valid, dynamically route OpenAI client calls to Google Gemini API
-if GEMINI_KEY and "your_actual_key" not in GEMINI_KEY.lower() and GEMINI_KEY != "":
-    logger.info("Configuring Gemini API (OpenAI-compatible) endpoint for LLM completion.")
-    OPENAI_API_KEY = GEMINI_KEY
-    OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-    LLM_MODEL = os.getenv("LLM_MODEL", "gemini-1.5-flash")
-else:
+raw_openai_key = _clean_key(os.getenv("OPENAI_API_KEY", ""))
+raw_gemini_key = _clean_key(os.getenv("GEMINI_API_KEY", ""))
+
+# Determine provider routing
+is_valid_openai = bool(raw_openai_key and len(raw_openai_key) > 15 and "your-openai-api-key" not in raw_openai_key.lower() and "your_actual_key" not in raw_openai_key.lower() and not raw_openai_key.startswith("sk-<"))
+is_valid_gemini = bool(raw_gemini_key and len(raw_gemini_key) > 15 and "your_actual_key" not in raw_gemini_key.lower())
+
+if is_valid_openai:
     logger.info("Configuring standard OpenAI API endpoint for LLM completion.")
-    OPENAI_API_KEY = raw_openai_key.replace('\u2011', '-').replace('\u2013', '-').replace('\u2014', '-').strip()
+    OPENAI_API_KEY = raw_openai_key
     OPENAI_BASE_URL = None
     LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    # If LLM_MODEL in .env is set to a gemini model by accident while using OpenAI key, fix to gpt-4o-mini
+    if "gemini" in LLM_MODEL.lower():
+        LLM_MODEL = "gpt-4o-mini"
+elif is_valid_gemini:
+    logger.info("Configuring Gemini API (OpenAI-compatible) endpoint for LLM completion.")
+    OPENAI_API_KEY = raw_gemini_key
+    OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    env_model = os.getenv("LLM_MODEL", "gemini-1.5-flash")
+    LLM_MODEL = env_model if "gemini" in env_model.lower() else "gemini-1.5-flash"
+else:
+    logger.info("No external LLM API key detected or invalid keys; local extractive synthesis will be used.")
+    OPENAI_API_KEY = raw_openai_key or "sk-demo-key-local-only"
+    OPENAI_BASE_URL = None
+    LLM_MODEL = "gpt-4o-mini"
 
 # We use sentence-transformers locally, so this setting is a fallback name
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
@@ -70,13 +89,10 @@ def check_keys() -> bool:
     """
     Validates that a required API key is set and is not a placeholder.
     """
-    if GEMINI_KEY and "your_actual_key" not in GEMINI_KEY.lower() and GEMINI_KEY != "":
-        return True
-    
-    if OPENAI_API_KEY and OPENAI_API_KEY.strip() != "" and "your-openai-api-key" not in OPENAI_API_KEY.lower() and "your_actual_key" not in OPENAI_API_KEY.lower() and "sk-<your" not in OPENAI_API_KEY.lower():
+    if is_valid_openai or is_valid_gemini:
         return True
         
-    logger.error("No valid API Key found. Please add a valid OPENAI_API_KEY or GEMINI_API_KEY to your .env file.")
+    logger.warning("No live API Key found. Operating in local extractive RAG mode.")
     return False
 
 
@@ -87,5 +103,7 @@ def get_openai_client():
     import openai
     return openai.OpenAI(
         api_key=OPENAI_API_KEY,
-        base_url=OPENAI_BASE_URL
+        base_url=OPENAI_BASE_URL,
+        max_retries=0,
+        timeout=4.0
     )

@@ -375,21 +375,22 @@ def query_db(
                     tokenized_corpus = [tokenize_text(doc) for doc in all_docs]
                     bm25 = BM25Okapi(tokenized_corpus)
                     tokenized_query = tokenize_text(query_text)
-                    scores = bm25.get_scores(tokenized_query)
+                    raw_scores = bm25.get_scores(tokenized_query)
+                    scores = [float(s) for s in raw_scores]
                 except Exception:
                     # Pure-python keyword matching fallback
                     q_words = set(w.lower() for w in query_text.split() if len(w) > 2)
                     scores = []
                     for doc in all_docs:
                         d_lower = doc.lower()
-                        score = sum(1.0 for w in q_words if w in d_lower)
+                        score = float(sum(1.0 for w in q_words if w in d_lower))
                         scores.append(score)
                 
                 doc_scores = list(enumerate(scores))
                 doc_scores = [(idx, score) for idx, score in doc_scores if score > 0.0]
                 sorted_doc_scores = sorted(doc_scores, key=lambda x: x[1], reverse=True)
                 
-                max_score = max(scores) if scores and max(scores) > 0.0 else 1.0
+                max_score = max(scores) if (len(scores) > 0 and max(scores) > 0.0) else 1.0
                 
                 for idx, score in sorted_doc_scores:
                     doc_text = all_docs[idx]

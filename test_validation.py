@@ -117,6 +117,7 @@ class TestValidationSuite(unittest.TestCase):
         finally:
             pass
 
+    @patch("utils.retriever.get_embedding", return_value=[0.1] * 1536)
     @patch("utils.retriever.expand_query")
     @patch("utils.retriever.get_collection")
     @patch("openai.OpenAI")
@@ -124,7 +125,8 @@ class TestValidationSuite(unittest.TestCase):
         self,
         mock_openai: MagicMock,
         mock_collection: MagicMock,
-        mock_expand_query: MagicMock
+        mock_expand_query: MagicMock,
+        mock_get_embedding: MagicMock
     ) -> None:
         """
         Test 5: Integration End-to-End Pipeline Verification.

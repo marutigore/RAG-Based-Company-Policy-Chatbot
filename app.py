@@ -134,10 +134,41 @@ def call_llm(
             ],
             temperature=0.0
         )
-        return response.choices[0].message.content or ""
+        content = response.choices[0].message.content or ""
+        if content.strip():
+            return content
     except Exception as e:
-        logger.error(f"Error calling LLM: {e}")
-        return f"An error occurred: {str(e)}"
+        logger.warning(f"LLM API completion unavailable ({e}). Generating grounded extractive synthesis from retrieved policy excerpts...")
+
+    # Grounded extractive synthesis fallback
+    if not retrieved_chunks:
+        return "Information not found in current company policy documents. Please ensure relevant policy documents are uploaded or adjust your search filter."
+
+    top_chunk = retrieved_chunks[0]
+    src = top_chunk["metadata"].get("source", "Document")
+    page = top_chunk["metadata"].get("page", 1)
+
+    lines = []
+    lines.append(f"**Policy Guidance Summary** (Source: `{src}`, Page {page}):\n")
+    
+    extracted_bullets = []
+    for idx, chunk in enumerate(retrieved_chunks[:3]):
+        c_src = chunk["metadata"].get("source", "Document")
+        c_page = chunk["metadata"].get("page", 1)
+        raw = sanitize_text(chunk.get("text", "")).strip()
+        sentences = [s.strip() for s in raw.replace("\r", " ").replace("\n", " ").split(".") if len(s.strip()) > 18]
+        if sentences:
+            for s in sentences[:2]:
+                extracted_bullets.append(f"• {s}. [{idx + 1}]")
+        elif raw:
+            extracted_bullets.append(f"• {raw[:220]}... [{idx + 1}]")
+
+    if extracted_bullets:
+        lines.extend(extracted_bullets)
+    else:
+        lines.append(f"• {sanitize_text(top_chunk.get('text', ''))[:250]}... [1]")
+
+    return "\n".join(lines)
 
 def run_pipeline(
     question: str,
@@ -1360,19 +1391,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             }
         }
 
-        // Reset database
-        async function handleResetDB() {
-            if (!confirm("Are you sure you want to completely wipe the vector index database? This cannot be undone.")) return;
-            try {
-                const res = await fetch(API_BASE + '/api/reset', { method: 'POST' });
-                if (res.ok) {
-                    showToast("Database reset successfully.");
-                    fetchDocuments();
-                }
-            } catch (err) {
-                showToast("Reset failed", true);
-            }
-        }
 
         let currentSessionId = localStorage.getItem("synthara_session_id") || ("sess_" + Math.random().toString(36).substring(2, 9));
         let activeCategoryFilter = "All";
@@ -1639,24 +1657,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             el.classList.toggle('hidden');
         }
 
-        // Log thumbs rating feedback
-        async function handleRating(answerText, rating, btn) {
-            try {
-                const res = await fetch(API_BASE + '/api/feedback', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        answer: answerText,
-                        rating: rating
-                    })
-                });
-                if (res.ok) {
-                    btn.classList.add('bg-indigo-500/20', 'text-white', 'border-indigo-500/40');
-                }
-            } catch (err) {
-                console.error("Error rating:", err);
-            }
-        }
+
 
         // Trigger SharePoint sync simulation progress indicator
         
@@ -2154,63 +2155,59 @@ async def api_auth_register(payload: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-import threading
 import sys
 
-# Detect if running in streamlit environment
-is_streamlit = any("streamlit" in arg for arg in sys.argv) or "streamlit" in sys.modules
+# Detect if executing actively under the Streamlit runner CLI
+is_streamlit_runner = False
+try:
+    if "streamlit" in sys.argv[0].lower() or any("run" in arg for arg in sys.argv if "streamlit" in arg):
+        import streamlit as st
+        try:
+            from streamlit.runtime.scriptrunner import get_script_run_ctx
+            ctx = get_script_run_ctx()
+            if ctx is not None:
+                is_streamlit_runner = True
+        except Exception:
+            is_streamlit_runner = False
+except Exception:
+    is_streamlit_runner = False
 
-def start_api_server():
+if is_streamlit_runner:
     try:
+        import threading
         import uvicorn
-        # API server runs on port 8000 listening on all network interfaces
-        uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
-    except Exception as e:
-        logger.error(f"Failed to start background API server: {e}")
-
-if not hasattr(app, "_api_started"):
-    app._api_started = True
-    thread = threading.Thread(target=start_api_server, daemon=True)
-    thread.start()
-
-if is_streamlit:
-    try:
         import streamlit as st
         import streamlit.components.v1 as components
-        
+
+        def _start_bg_api():
+            try:
+                uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
+            except Exception:
+                pass
+
+        if not hasattr(app, "_bg_api_started"):
+            app._bg_api_started = True
+            t = threading.Thread(target=_start_bg_api, daemon=True)
+            t.start()
+
         st.set_page_config(
             page_title="Synthara Policy Portal",
             page_icon="🛡️",
             layout="wide",
             initial_sidebar_state="collapsed"
         )
-        
         st.markdown("""
         <style>
-            /* Reset container padding to fit the full-viewport custom dashboard */
-            .block-container {
-                padding: 0px !important;
-                margin: 0px !important;
-                max-width: 100% !important;
-            }
-            iframe {
-                border: none !important;
-            }
-            [data-testid="stHeader"] {
-                visibility: hidden !important;
-                height: 0px !important;
-            }
-            footer {
-                visibility: hidden !important;
-            }
+            .block-container { padding: 0px !important; margin: 0px !important; max-width: 100% !important; }
+            iframe { border: none !important; }
+            [data-testid="stHeader"], footer { visibility: hidden !important; height: 0px !important; }
         </style>
         """, unsafe_allow_html=True)
-        
-        # Render the custom glassmorphic HTML SPA in full height
         components.html(HTML_CONTENT, height=850, scrolling=True)
     except Exception as e:
-        logger.error(f"Streamlit rendering failed: {e}")
+        logger.error(f"Streamlit execution failed: {e}")
 
 if __name__ == "__main__":
-    # If run directly as python script, default to hosting on port 8501
-    uvicorn.run("app:app", host="0.0.0.0", port=8501, reload=False)
+    import uvicorn
+    # When run directly via `python app.py`, bind cleanly to port 8000
+    uvicorn.run(app, host="127.0.0.1", port=8000, reload=False)
