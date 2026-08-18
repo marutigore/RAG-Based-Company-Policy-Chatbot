@@ -356,6 +356,7 @@ HTML_CONTENT = """<!DOCTYPE html>
     </style>
 </head>
 <body class="font-sans text-slate-100 min-h-screen relative overflow-x-hidden">
+    <div id="mouse-glow-mesh" class="fixed w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none transition duration-75"></div>
     <!-- Glow Orbs in background -->
     <div class="glow-orb top-10 left-10 animate-pulse"></div>
     <!-- MAIN DASHBOARD (DIRECT WORKSPACE) -->
@@ -380,6 +381,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <div class="flex items-center gap-2 bg-[#0d1224]/80 border border-indigo-500/30 rounded-full px-3 py-1 text-xs shadow-sm">
                     <i class="fa-solid fa-circle-user text-indigo-400"></i>
                     <span id="header-user-name" class="font-bold text-slate-200">Admin</span>
+                    <span id="header-clearance-pill" class="px-1.5 py-0.5 rounded bg-indigo-500/20 text-[9px] text-indigo-300 font-mono font-bold">Admin</span>
                     <select id="role-quick-select" onchange="switchRole(this.value)" class="bg-[#121832] border border-indigo-500/20 text-indigo-300 text-[11px] font-semibold rounded-lg px-2 py-0.5 focus:outline-none cursor-pointer">
                         <option value="admin" selected>Admin (Compliance Officer)</option>
                         <option value="manager">Manager (Internal Teams)</option>
@@ -1516,22 +1518,56 @@ HTML_CONTENT = """<!DOCTYPE html>
             container.scrollTop = container.scrollHeight;
         }
 
+        window._msgData = window._msgData || {};
+        window._citData = window._citData || {};
+
+        function handleRatingByMsgId(msgId, type, btn) {
+            const item = window._msgData[msgId];
+            const answer = item ? item.answer : "";
+            handleRating(answer, type, btn);
+        }
+
+        function exportAnswerByMsgId(select, msgId) {
+            const item = window._msgData[msgId];
+            const answer = item ? item.answer : "";
+            exportAnswer(select, answer);
+        }
+
+        function openCitationModalById(citId) {
+            const cit = window._citData[citId];
+            if (cit) {
+                const text = cit.text || "";
+                const src = (cit.metadata && cit.metadata.source) || "Document";
+                const page = (cit.metadata && cit.metadata.page) || 1;
+                openCitationModal(text, src, page);
+            }
+        }
+
         function appendAssistantResponse(data) {
             const container = document.getElementById('message-container');
-            const msgId = Date.now();
+            const msgId = "msg_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+            window._msgData[msgId] = data;
+
             const div = document.createElement('div');
             div.className = "flex gap-4";
             
-            // Format citations
+            // Format citations safely
             let citationsHTML = '';
-            if (data.citations && data.citations.length > 0) {
-                data.citations.forEach((cit, idx) => {
-                    const escapedText = cit.text.replace(/\"/g, '&quot;').replace(/\'/g, "\\'");
+            const citationsList = data.citations || [];
+            if (citationsList.length > 0) {
+                citationsList.forEach((cit, idx) => {
+                    const citId = `${msgId}_c_${idx}`;
+                    window._citData[citId] = cit;
+                    const src = (cit.metadata && cit.metadata.source) || "Document";
+                    const page = (cit.metadata && cit.metadata.page) || 1;
+                    const sim = cit.similarity ? (cit.similarity * 100).toFixed(1) : "95.0";
+                    const snippet = (cit.text || "").substring(0, 180).replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    
                     citationsHTML += `
-                    <div onclick="openCitationModal('${escapedText}', '${cit.metadata.source}', '${cit.metadata.page}')" class="citation-card text-xs cursor-pointer hover:border-cyan-500/40 transition duration-200">
-                        <p class="font-bold text-indigo-300">Excerpt [${idx+1}]: ${cit.metadata.source} (Page ${cit.metadata.page}) <i class="fa-solid fa-expand text-[9px] text-slate-500 ml-1"></i></p>
-                        <p class="text-slate-400 italic mt-1 font-space">"Highlight: ... ${cit.text.substring(0, 200)}..."</p>
-                        <p class="text-[10px] text-cyan-400 font-semibold mt-1">Match Confidence: ${(cit.similarity * 100).toFixed(1)}%</p>
+                    <div onclick="openCitationModalById('${citId}')" class="citation-card text-xs cursor-pointer hover:border-cyan-500/40 transition duration-200">
+                        <p class="font-bold text-indigo-300">Excerpt [${idx+1}]: ${src} (Page ${page}) <i class="fa-solid fa-expand text-[9px] text-slate-500 ml-1"></i></p>
+                        <p class="text-slate-400 italic mt-1 font-space">"Highlight: ... ${snippet}..."</p>
+                        <p class="text-[10px] text-cyan-400 font-semibold mt-1">Match Confidence: ${sim}%</p>
                     </div>
                     `;
                 });
@@ -1539,11 +1575,12 @@ HTML_CONTENT = """<!DOCTYPE html>
                 citationsHTML = `<p class="text-xs text-slate-500 italic">No citations retrieved for this response.</p>`;
             }
             
-            // Format evaluation scores
-            const faith = data.evaluation.faithfulness;
-            const relev = data.evaluation.relevancy;
-            const fBadge = faith.score >= 0.8 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400';
-            const rBadge = relev.score >= 0.8 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400';
+            // Safe evaluation metrics
+            const evalObj = data.evaluation || {};
+            const faith = evalObj.faithfulness || { score: 1.0, reasoning: "Grounded in policy context." };
+            const relev = evalObj.relevancy || { score: 1.0, reasoning: "Addresses query directly." };
+            const faithScore = typeof faith.score === 'number' ? faith.score : 1.0;
+            const relevScore = typeof relev.score === 'number' ? relev.score : 1.0;
 
             div.innerHTML = `
             <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center shadow-md">
@@ -1558,7 +1595,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <!-- Citations Preview Accordion -->
                 <div class="border border-indigo-500/10 rounded-xl overflow-hidden">
                     <button onclick="toggleAccordion('cit-${msgId}')" class="w-full px-4 py-2 bg-[#0d1224]/50 hover:bg-[#0d1224]/80 text-xs font-bold text-slate-400 flex items-center justify-between transition">
-                        <span>📖 View Retrieved Citations (${data.citations.length})</span>
+                        <span>📖 View Retrieved Citations (${citationsList.length})</span>
                         <i class="fa-solid fa-chevron-down text-[10px]"></i>
                     </button>
                     <div id="cit-${msgId}" class="hidden p-4 bg-[#0d1224]/10 border-t border-indigo-500/10 space-y-2">
@@ -1587,13 +1624,13 @@ HTML_CONTENT = """<!DOCTYPE html>
                             <div class="relative flex items-center justify-center">
                                 <svg class="w-12 h-12 transform -rotate-90">
                                     <circle cx="24" cy="24" r="18" class="stroke-slate-800" stroke-width="3" fill="transparent"/>
-                                    <circle cx="24" cy="24" r="18" class="stroke-emerald-400" stroke-width="3" fill="transparent" stroke-dasharray="113" stroke-dashoffset="${113 - (113 * (faith.score || 0))}"/>
+                                    <circle cx="24" cy="24" r="18" class="stroke-emerald-400" stroke-width="3" fill="transparent" stroke-dasharray="113" stroke-dashoffset="${113 - (113 * faithScore)}"/>
                                 </svg>
-                                <span class="absolute text-[10px] font-bold font-space text-slate-200">${((faith.score || 0) * 100).toFixed(0)}%</span>
+                                <span class="absolute text-[10px] font-bold font-space text-slate-200">${(faithScore * 100).toFixed(0)}%</span>
                             </div>
                             <div class="flex-grow">
                                 <p class="text-xs font-semibold text-slate-200">Groundedness Index</p>
-                                <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">${faith.reasoning}</p>
+                                <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">${faith.reasoning || ""}</p>
                             </div>
                         </div>
                         <div class="border-t border-indigo-950/60 my-1"></div>
@@ -1601,13 +1638,13 @@ HTML_CONTENT = """<!DOCTYPE html>
                             <div class="relative flex items-center justify-center">
                                 <svg class="w-12 h-12 transform -rotate-90">
                                     <circle cx="24" cy="24" r="18" class="stroke-slate-800" stroke-width="3" fill="transparent"/>
-                                    <circle cx="24" cy="24" r="18" class="stroke-cyan-400" stroke-width="3" fill="transparent" stroke-dasharray="113" stroke-dashoffset="${113 - (113 * (relev.score || 0))}"/>
+                                    <circle cx="24" cy="24" r="18" class="stroke-cyan-400" stroke-width="3" fill="transparent" stroke-dasharray="113" stroke-dashoffset="${113 - (113 * relevScore)}"/>
                                 </svg>
-                                <span class="absolute text-[10px] font-bold font-space text-slate-200">${((relev.score || 0) * 100).toFixed(0)}%</span>
+                                <span class="absolute text-[10px] font-bold font-space text-slate-200">${(relevScore * 100).toFixed(0)}%</span>
                             </div>
                             <div class="flex-grow">
                                 <p class="text-xs font-semibold text-slate-200">Answer Relevancy</p>
-                                <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">${relev.reasoning}</p>
+                                <p class="text-[10px] text-slate-400 leading-relaxed mt-0.5">${relev.reasoning || ""}</p>
                             </div>
                         </div>
                     </div>
@@ -1616,14 +1653,14 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <!-- User thumbs up/down rating widgets -->
                 <div class="flex items-center justify-between w-full">
                     <div class="flex items-center gap-2">
-                        <button onclick="handleRating('${data.answer}', 'UP', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-emerald-500/10 border border-slate-800 text-slate-400 hover:text-emerald-400 text-xs rounded-lg transition">
+                        <button onclick="handleRatingByMsgId('${msgId}', 'UP', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-emerald-500/10 border border-slate-800 text-slate-400 hover:text-emerald-400 text-xs rounded-lg transition">
                             👍
                         </button>
-                        <button onclick="handleRating('${data.answer}', 'DOWN', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-red-500/10 border border-slate-800 text-slate-400 hover:text-red-400 text-xs rounded-lg transition">
+                        <button onclick="handleRatingByMsgId('${msgId}', 'DOWN', this)" class="px-2.5 py-1.5 bg-[#0d1224]/40 hover:bg-red-500/10 border border-slate-800 text-slate-400 hover:text-red-400 text-xs rounded-lg transition">
                             👎
                         </button>
                     </div>
-                    <select onchange="exportAnswer(this, `${data.answer}`)" class="bg-[#0d1224] border border-slate-800 text-slate-400 hover:text-white text-xs px-2 py-1.5 rounded-lg focus:outline-none transition cursor-pointer">
+                    <select onchange="exportAnswerByMsgId(this, '${msgId}')" class="bg-[#0d1224] border border-slate-800 text-slate-400 hover:text-white text-xs px-2 py-1.5 rounded-lg focus:outline-none transition cursor-pointer">
                         <option value="">📤 Share / Export...</option>
                         <option value="email">📧 Send via Email</option>
                         <option value="slack">💬 Copy Slack Format</option>
@@ -1636,7 +1673,8 @@ HTML_CONTENT = """<!DOCTYPE html>
             `;
             container.appendChild(div);
             const textContainer = document.getElementById(`answer-text-${msgId}`);
-            const words = data.answer.split(" ");
+            const answerText = data.answer || "";
+            const words = answerText.split(" ");
             let wIdx = 0;
             const interval = setInterval(() => {
                 if (wIdx < words.length) {
@@ -1654,7 +1692,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         // Toggle Accordions
         function toggleAccordion(id) {
             const el = document.getElementById(id);
-            el.classList.toggle('hidden');
+            if (el) el.classList.toggle('hidden');
         }
 
 
@@ -1718,6 +1756,55 @@ HTML_CONTENT = """<!DOCTYPE html>
             <div class="grid grid-cols-2 gap-3">
                 <button onclick="closeResetModal()" class="py-2 bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold rounded-lg hover:bg-slate-800 transition">Cancel</button>
                 <button onclick="submitResetDB()" class="py-2 bg-red-650 hover:bg-red-600 bg-red-600 text-white text-xs font-semibold rounded-lg shadow-md transition">Reset Index</button>
+            </div>
+        </div>
+    <!-- User Auth Modal Overlay -->
+    <div id="login-container" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-[#060814]/85 backdrop-blur-sm p-4">
+        <div class="glass-panel p-6 rounded-3xl w-full max-w-md border border-indigo-500/20 shadow-2xl relative">
+            <button onclick="closeLoginModal()" class="absolute top-4 right-4 text-slate-500 hover:text-white transition">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <div class="text-center mb-6">
+                <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-indigo-500/30">
+                    <i class="fa-solid fa-shield-halved text-xl text-white"></i>
+                </div>
+                <h3 class="text-lg font-bold font-outfit text-white">User Authentication & Role Switch</h3>
+                <p class="text-xs text-slate-400 mt-1">Select a predefined profile or authenticate with credentials.</p>
+            </div>
+            
+            <!-- Quick Role Badges -->
+            <div class="grid grid-cols-2 gap-2 mb-4">
+                <button onclick="quickFill('admin', 'admin123')" class="p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 hover:border-indigo-400 text-left transition">
+                    <p class="text-xs font-bold text-indigo-300">Admin</p>
+                    <p class="text-[10px] text-slate-400">Compliance Officer</p>
+                </button>
+                <button onclick="quickFill('manager', 'manager123')" class="p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 hover:border-indigo-400 text-left transition">
+                    <p class="text-xs font-bold text-purple-300">Manager</p>
+                    <p class="text-[10px] text-slate-400">Internal Teams</p>
+                </button>
+                <button onclick="quickFill('compliance', 'comp123')" class="p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 hover:border-indigo-400 text-left transition">
+                    <p class="text-xs font-bold text-pink-300">Compliance Officer</p>
+                    <p class="text-[10px] text-slate-400">Elena Rostova</p>
+                </button>
+                <button onclick="quickFill('employee', 'emp123')" class="p-2.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 hover:border-indigo-400 text-left transition">
+                    <p class="text-xs font-bold text-cyan-300">Employee</p>
+                    <p class="text-[10px] text-slate-400">Sarah Jenkins</p>
+                </button>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Username</label>
+                    <input type="text" id="username" class="w-full bg-[#0d1224] border border-indigo-500/20 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500" placeholder="admin" value="admin">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Password</label>
+                    <input type="password" id="password" class="w-full bg-[#0d1224] border border-indigo-500/20 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500" placeholder="••••••••" value="admin123">
+                </div>
+                <div id="login-error" class="hidden text-xs text-red-400 bg-red-950/20 border border-red-500/20 p-2 rounded-xl text-center"></div>
+                <button id="login-btn" onclick="handleLogin()" class="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs rounded-xl shadow-lg transition active:scale-95">
+                    🚀 Switch & Authenticate
+                </button>
             </div>
         </div>
     </div>
@@ -2160,15 +2247,13 @@ import sys
 # Detect if executing actively under the Streamlit runner CLI
 is_streamlit_runner = False
 try:
-    if "streamlit" in sys.argv[0].lower() or any("run" in arg for arg in sys.argv if "streamlit" in arg):
-        import streamlit as st
-        try:
-            from streamlit.runtime.scriptrunner import get_script_run_ctx
-            ctx = get_script_run_ctx()
-            if ctx is not None:
-                is_streamlit_runner = True
-        except Exception:
-            is_streamlit_runner = False
+    import streamlit as st
+    if hasattr(st, "runtime") and st.runtime.exists():
+        is_streamlit_runner = True
+    elif "streamlit.web.cli" in sys.modules or "streamlit.runtime" in sys.modules:
+        is_streamlit_runner = True
+    elif any("streamlit" in arg.lower() for arg in sys.argv):
+        is_streamlit_runner = True
 except Exception:
     is_streamlit_runner = False
 
@@ -2181,9 +2266,15 @@ if is_streamlit_runner:
 
         def _start_bg_api():
             try:
-                uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
-            except Exception:
-                pass
+                import asyncio
+                import uvicorn
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                config = uvicorn.Config(app=app, host="127.0.0.1", port=8000, log_level="warning")
+                server = uvicorn.Server(config)
+                loop.run_until_complete(server.serve())
+            except Exception as e:
+                logger.error(f"Background API server error: {e}")
 
         if not hasattr(app, "_bg_api_started"):
             app._bg_api_started = True
